@@ -1,5 +1,6 @@
 
 'use client';
+export const runtime = 'edge';
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -111,8 +112,9 @@ export default function SettingsPage() {
       // TODO: Fetch and set preferencesForm defaults here
       // Example: loadPreferences().then(prefs => preferencesForm.reset(prefs));
        // Load theme from localStorage or default to system
-        const savedTheme = localStorage.getItem('theme') || 'system';
-        const savedNotifications = localStorage.getItem('receiveNotifications') === 'true';
+        const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') || 'system' : 'system';
+        const savedNotifications = typeof window !== 'undefined' ? localStorage.getItem('receiveNotifications') === 'true' : false;
+
         preferencesForm.reset({
             theme: savedTheme as 'light' | 'dark' | 'system',
             receiveNotifications: savedNotifications,
@@ -244,20 +246,28 @@ export default function SettingsPage() {
      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
 
      // Persist preferences (e.g., in localStorage)
-     try {
-        localStorage.setItem('theme', data.theme);
-        localStorage.setItem('receiveNotifications', String(data.receiveNotifications));
-         applyTheme(data.theme); // Apply theme change immediately
-         toast({
-            title: "Preferences Updated",
-            description: "Your preferences have been saved.",
-         });
-     } catch (error) {
-        console.error("Error saving preferences to localStorage:", error);
+     if (typeof window !== 'undefined') {
+        try {
+            localStorage.setItem('theme', data.theme);
+            localStorage.setItem('receiveNotifications', String(data.receiveNotifications));
+            applyTheme(data.theme); // Apply theme change immediately
+            toast({
+                title: "Preferences Updated",
+                description: "Your preferences have been saved.",
+            });
+        } catch (error) {
+            console.error("Error saving preferences to localStorage:", error);
+            toast({
+                variant: "destructive",
+                title: "Save Failed",
+                description: "Could not save your preferences locally.",
+            });
+        }
+     } else {
          toast({
             variant: "destructive",
             title: "Save Failed",
-            description: "Could not save your preferences locally.",
+            description: "Cannot save preferences on the server.",
         });
      }
      // --- End Simulation ---
@@ -496,5 +506,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

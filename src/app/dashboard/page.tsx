@@ -1,4 +1,6 @@
 
+export const runtime = 'edge';
+
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Users, Briefcase, FileText, UsersRound, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';

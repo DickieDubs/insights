@@ -1,5 +1,6 @@
 
 'use client'; // Mark as client component for form handling
+export const runtime = 'edge';
 
 import React, { useState, useEffect, use } from 'react'; // Import 'use'
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,18 +30,24 @@ import {
 import { Separator } from '@/components/ui/separator'; // Import Separator
 
 
-// --- Mock Data Fetching ---
-// In a real app, fetch these from your backend
-// This function now needs to potentially fetch questions too
-const getSurveyData = async (surveyId: string) => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-  const surveys = [
+// --- Mock Data ---
+const allSurveysData = [
     { id: 'sur_1', name: 'Initial Concept Test', campaignId: 'camp_1', status: 'Active', description: 'Testing initial concepts for the new snack line.', questionCount: 3, type: 'Concept Test', rewardProgramId: 'rew_1', questions: [{ id: 'q1', text: 'How appealing?', type: 'rating' }, { id: 'q2', text: 'Which flavor?', type: 'multiple-choice', options: ['A', 'B'] }, { id: 'q3', text: 'Suggestions?', type: 'text' }] },
     { id: 'sur_2', name: 'Packaging Preference', campaignId: 'camp_1', status: 'Completed', description: 'Gathering feedback on potential packaging designs.', questionCount: 1, type: 'Preference Test', rewardProgramId: null, questions: [{ id: 'q4', text: 'Design preference?', type: 'multiple-choice', options: ['X', 'Y'] }] },
     // ... other surveys with or without questions
-  ];
-  const survey = surveys.find(s => s.id === surveyId);
+];
+
+export async function generateStaticParams() {
+  return allSurveysData.map((survey) => ({
+    surveyId: survey.id,
+  }));
+}
+
+const getSurveyData = async (surveyId: string) => {
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  const survey = allSurveysData.find(s => s.id === surveyId);
   // Make sure questions array exists, even if empty
   if (survey && !survey.questions) {
     survey.questions = [];
@@ -101,7 +108,6 @@ const surveyFormSchema = z.object({
 type SurveyFormValues = z.infer<typeof surveyFormSchema>;
 
 // --- Edit Survey Page Component ---
-// Update params type to Promise<{ surveyId: string }>
 export default function EditSurveyPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -109,7 +115,6 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
   const [isDeleting, setIsDeleting] = useState(false);
   const [surveyData, setSurveyData] = useState<Partial<SurveyFormValues> | null>(null); // Use partial for initial state
   const [loadingError, setLoadingError] = useState<string | null>(null);
-  // Unwrap the promise using React.use()
   const { surveyId } = use(params); // Destructure surveyId here
 
   const form = useForm<SurveyFormValues>({
@@ -255,6 +260,7 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
                 <CardDescription>Fetching survey details for editing.</CardDescription>
             </CardHeader>
              <CardContent className="space-y-4">
+                 {/* Skeleton loaders */}
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
                  <div className="h-20 bg-muted rounded animate-pulse"></div>
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
@@ -311,7 +317,7 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
              <form onSubmit={form.handleSubmit(handleUpdateSurvey)} className="space-y-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Edit Survey Details: {surveyData?.name}</CardTitle>
+                        <CardTitle>Edit Survey Details: {surveyData?.name || surveyId}</CardTitle>
                         <CardDescription>Modify the basic information of this survey.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">

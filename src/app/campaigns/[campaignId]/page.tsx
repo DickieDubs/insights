@@ -1,4 +1,5 @@
 
+export const runtime = 'edge';
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, FileText, Calendar, Users, Target, ListChecks } from 'lucide-react';
@@ -9,17 +10,23 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { use } from 'react'; // Import 'use'
 
-// Mock data - replace with real data fetching using params.campaignId
+// Mock data - make campaigns array accessible at module level
+const allCampaignsData = [
+    { id: 'camp_1', title: 'Spring Snack Launch', client: 'Gourmet Bites', clientId: 'cli_1', productType: 'Snacks', status: 'Active', startDate: '2024-03-01', endDate: '2024-04-30', targetAudience: 'Millennials, Urban Dwellers', surveys: [ {id: 'sur_1', name: 'Initial Concept Test', status: 'Active', responses: 152 }, {id: 'sur_2', name: 'Packaging Preference', status: 'Completed', responses: 210 }, {id: 'sur_3', name: 'Taste Profile Analysis', status: 'Planning', responses: 0 }] },
+    { id: 'camp_3', title: 'Beverage Taste Test Q2', client: 'Liquid Refreshments', clientId: 'cli_2', productType: 'Beverages', status: 'Completed', startDate: '2024-04-15', endDate: '2024-05-15', targetAudience: 'Gen Z, College Students', surveys: [ {id: 'sur_4', name: 'Flavor Preference Ranking', status: 'Completed', responses: 350 }, {id: 'sur_5', name: 'Brand Perception Survey', status: 'Completed', responses: 320 } ] },
+    // Add other campaigns if needed for generateStaticParams and data fetching
+];
+
+export async function generateStaticParams() {
+  return allCampaignsData.map((campaign) => ({
+    campaignId: campaign.id,
+  }));
+}
+
 const getCampaignData = async (campaignId: string) => {
   // Simulate API call
   await new Promise(resolve => setTimeout(resolve, 50));
-
-  const campaigns = [
-    { id: 'camp_1', title: 'Spring Snack Launch', client: 'Gourmet Bites', clientId: 'cli_1', productType: 'Snacks', status: 'Active', startDate: '2024-03-01', endDate: '2024-04-30', targetAudience: 'Millennials, Urban Dwellers', surveys: [ {id: 'sur_1', name: 'Initial Concept Test', status: 'Active', responses: 152 }, {id: 'sur_2', name: 'Packaging Preference', status: 'Completed', responses: 210 }, {id: 'sur_3', name: 'Taste Profile Analysis', status: 'Planning', responses: 0 }] },
-    { id: 'camp_3', title: 'Beverage Taste Test Q2', client: 'Liquid Refreshments', clientId: 'cli_2', productType: 'Beverages', status: 'Completed', startDate: '2024-04-15', endDate: '2024-05-15', targetAudience: 'Gen Z, College Students', surveys: [ {id: 'sur_4', name: 'Flavor Preference Ranking', status: 'Completed', responses: 350 }, {id: 'sur_5', name: 'Brand Perception Survey', status: 'Completed', responses: 320 } ] },
-    // Add other campaigns if needed
-  ];
-  const campaign = campaigns.find(c => c.id === campaignId);
+  const campaign = allCampaignsData.find(c => c.id === campaignId);
   return campaign || { id: campaignId, title: 'Campaign Not Found', client: 'N/A', clientId: 'N/A', productType: 'N/A', status: 'N/A', startDate: 'N/A', endDate: 'N/A', targetAudience: 'N/A', surveys: [] }; // Basic fallback
 };
 
@@ -31,7 +38,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ campa
   const campaign = use(getCampaignData(campaignId));
 
    if (campaign.title === 'Campaign Not Found') {
-     return <div className="p-6 text-center text-destructive">Campaign with ID {campaignId} not found.</div>;
+     return (
+        <div className="p-6 text-center">
+            <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit mx-auto">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+            </Link>
+            <p className="text-destructive">Campaign with ID {campaignId} not found.</p>
+        </div>
+     );
   }
 
   return (

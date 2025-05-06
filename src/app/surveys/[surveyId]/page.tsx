@@ -1,4 +1,6 @@
 
+export const runtime = 'edge';
+
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, FileText, Briefcase, Calendar, Users, ListChecks, CheckSquare, Award, Settings, Pencil, Link as LinkIcon, Eye, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -15,20 +17,27 @@ type SurveyQuestion = {
     options?: string[]; // For multiple-choice or ranking
 };
 
-
-// Mock data - replace with real data fetching using params.surveyId
-const getSurveyData = async (surveyId: string) => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 50));
-
-  const surveys = [
+// Mock data - make surveys array accessible at module level
+const allSurveysData = [
     { id: 'sur_1', name: 'Initial Concept Test', campaign: 'Spring Snack Launch', campaignId: 'camp_1', status: 'Active', responses: 152, createdDate: '2024-03-05', questionCount: 10, type: 'Concept Test', rewardProgramId: 'rew_1', rewardProgramName: 'Standard Points Program', questions: [ { id: 'q1', text: 'How appealing is this snack concept?', type: 'rating' }, { id: 'q2', text: 'Which flavor profile sounds most interesting?', type: 'multiple-choice', options: ['Spicy Mango', 'Garlic Parmesan', 'Sweet Chili'] }, { id: 'q3', text: 'Any suggestions for improvement?', type: 'text' } ] as SurveyQuestion[] },
     { id: 'sur_2', name: 'Packaging Preference', campaign: 'Spring Snack Launch', campaignId: 'camp_1', status: 'Completed', responses: 210, createdDate: '2024-03-15', questionCount: 8, type: 'Preference Test', rewardProgramId: null, rewardProgramName: null, questions: [ { id: 'q4', text: 'Which packaging design do you prefer?', type: 'multiple-choice', options: ['Design A', 'Design B', 'Design C'] } ] as SurveyQuestion[] },
     { id: 'sur_3', name: 'Taste Profile Analysis', campaign: 'Spring Snack Launch', campaignId: 'camp_1', status: 'Planning', responses: 0, createdDate: '2024-04-01', questionCount: 15, type: 'Sensory Test', rewardProgramId: 'rew_1', rewardProgramName: 'Standard Points Program', questions: [] as SurveyQuestion[] },
     { id: 'sur_4', name: 'Flavor Preference Ranking', campaign: 'Beverage Taste Test Q2', campaignId: 'camp_3', status: 'Completed', responses: 350, createdDate: '2024-04-10', questionCount: 5, type: 'Ranking', rewardProgramId: 'rew_2', rewardProgramName: 'Gift Card Raffle Q3', questions: [ {id: 'q5', text: 'Rank these potential new flavors (1=most preferred)', type: 'ranking', options: ['Berry Blast', 'Citrus Zing', 'Tropical Twist'] } ] as SurveyQuestion[] },
     // Add other surveys
-  ];
-  const survey = surveys.find(s => s.id === surveyId);
+];
+
+export async function generateStaticParams() {
+  return allSurveysData.map((survey) => ({
+    surveyId: survey.id,
+  }));
+}
+
+
+const getSurveyData = async (surveyId: string) => {
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  const survey = allSurveysData.find(s => s.id === surveyId);
   // Return default structure even if not found, including empty questions array
   return survey || { id: surveyId, name: 'Survey Not Found', campaign: 'N/A', campaignId: 'N/A', status: 'N/A', responses: 0, createdDate: 'N/A', questionCount: 0, type: 'N/A', rewardProgramId: null, rewardProgramName: null, questions: [] as SurveyQuestion[] };
 };

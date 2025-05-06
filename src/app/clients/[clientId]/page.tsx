@@ -1,4 +1,6 @@
 
+export const runtime = 'edge';
+
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, Mail, Phone, Briefcase, Building, Pencil } from 'lucide-react';
@@ -6,20 +8,28 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { use } from 'react'; // Import 'use'
+import { use } from 'react';
 
-// Mock data - replace with real data fetching using params.clientId
+// Mock data - make clients array accessible at module level
+const allClientsData = [
+    { id: 'cli_1', name: 'Gourmet Bites', industry: 'Food & Beverage', contactPerson: 'Alice Wonderland', email: 'alice@gourmetbites.com', phone: '555-1234', logoUrl: 'https://picsum.photos/seed/gourmet/64/64', campaigns: [ { id: 'camp_1', title: 'Spring Snack Launch', surveys: 3 }, { id: 'camp_2', title: 'Holiday Cookie Test', surveys: 2 } ] },
+    { id: 'cli_2', name: 'Liquid Refreshments', industry: 'Beverages', contactPerson: 'Bob The Builder', email: 'bob@liquidrefresh.com', phone: '555-5678', logoUrl: 'https://picsum.photos/seed/liquid/64/64', campaigns: [ { id: 'camp_3', title: 'Beverage Taste Test Q2', surveys: 5 } ] },
+    // Add other clients if needed for generateStaticParams and data fetching
+];
+
+export async function generateStaticParams() {
+  // Filter out any potential non-ID segments if necessary, though typically IDs are distinct
+  return allClientsData.map((client) => ({
+    clientId: client.id,
+  }));
+}
+
+
 const getClientData = async (clientId: string) => {
   // Simulate API call
   await new Promise(resolve => setTimeout(resolve, 50)); // Simulate network delay
 
-  // Find client or return a default/error object
-  const clients = [
-    { id: 'cli_1', name: 'Gourmet Bites', industry: 'Food & Beverage', contactPerson: 'Alice Wonderland', email: 'alice@gourmetbites.com', phone: '555-1234', logoUrl: 'https://picsum.photos/seed/gourmet/64/64', campaigns: [ { id: 'camp_1', title: 'Spring Snack Launch', surveys: 3 }, { id: 'camp_2', title: 'Holiday Cookie Test', surveys: 2 } ] },
-    { id: 'cli_2', name: 'Liquid Refreshments', industry: 'Beverages', contactPerson: 'Bob The Builder', email: 'bob@liquidrefresh.com', phone: '555-5678', logoUrl: 'https://picsum.photos/seed/liquid/64/64', campaigns: [ { id: 'camp_3', title: 'Beverage Taste Test Q2', surveys: 5 } ] },
-    // Add other clients if needed for testing different IDs
-  ];
-  const client = clients.find(c => c.id === clientId);
+  const client = allClientsData.find(c => c.id === clientId);
   return client || { id: clientId, name: 'Client Not Found', industry: 'N/A', contactPerson: 'N/A', email: 'N/A', phone: 'N/A', logoUrl: '', campaigns: [] }; // Basic fallback
 };
 
@@ -31,7 +41,15 @@ export default function ClientDetailPage({ params }: { params: Promise<{ clientI
   const client = use(getClientData(clientId));
 
   if (client.name === 'Client Not Found') {
-     return <div className="p-6 text-center text-destructive">Client with ID {clientId} not found.</div>;
+     return (
+        <div className="p-6 text-center">
+            <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit mx-auto">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+            </Link>
+            <p className="text-destructive">Client with ID {clientId} not found.</p>
+        </div>
+     );
   }
 
   return (

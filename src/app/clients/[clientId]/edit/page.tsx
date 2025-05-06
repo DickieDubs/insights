@@ -1,5 +1,6 @@
 
 'use client'; // Mark as client component for form handling
+export const runtime = 'edge';
 
 import React, { useState, useEffect, use } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,18 +28,25 @@ import {
 } from "@/components/ui/alert-dialog"
 
 
-// --- Mock Data Fetching ---
-const getClientData = async (clientId: string) => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-   const clients = [
+// --- Mock Data ---
+const allClientsData = [
     { id: 'cli_1', name: 'Gourmet Bites', industry: 'Food & Beverage', contactPerson: 'Alice Wonderland', email: 'alice@gourmetbites.com', phone: '555-1234', logoUrl: 'https://picsum.photos/seed/gourmet/64/64', campaigns: [ { id: 'camp_1', title: 'Spring Snack Launch', surveys: 3 }, { id: 'camp_2', title: 'Holiday Cookie Test', surveys: 2 } ], status: 'Active' },
     { id: 'cli_2', name: 'Liquid Refreshments', industry: 'Beverages', contactPerson: 'Bob The Builder', email: 'bob@liquidrefresh.com', phone: '555-5678', logoUrl: 'https://picsum.photos/seed/liquid/64/64', campaigns: [ { id: 'camp_3', title: 'Beverage Taste Test Q2', surveys: 5 } ], status: 'Active'},
     { id: 'cli_3', name: 'Morning Foods Inc.', industry: 'CPG', contactPerson: 'Charlie Chaplin', email: 'charlie@morningfoods.com', phone: '555-9101', logoUrl: 'https://picsum.photos/seed/morning/64/64', campaigns: [], status: 'Active' },
     { id: 'cli_4', name: 'Quick Eats Co.', industry: 'Frozen Foods', contactPerson: 'Diana Prince', email: 'diana@quickeats.co', phone: '555-1121', logoUrl: 'https://picsum.photos/seed/quickeats/64/64', campaigns: [], status: 'Inactive' },
     { id: 'cli_5', name: 'Healthy Snacks Ltd.', industry: 'Health Foods', contactPerson: 'Ethan Hunt', email: 'ethan@healthysnacks.com', phone: '555-1314', logoUrl: 'https://picsum.photos/seed/healthy/64/64', campaigns: [], status: 'Active' },
-  ];
-  const client = clients.find(c => c.id === clientId);
+];
+
+export async function generateStaticParams() {
+  return allClientsData.map((client) => ({
+    clientId: client.id,
+  }));
+}
+
+const getClientData = async (clientId: string) => {
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 100));
+  const client = allClientsData.find(c => c.id === clientId);
   return client || null;
 };
 
@@ -180,10 +188,10 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
    if (isLoading && !form.formState.isDirty) { // Show loading only initially
     return (
       <div className="flex flex-col gap-6 py-6">
-         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+         <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
              Back to Dashboard
-        </div>
+        </Link>
         <Card>
             <CardHeader>
                 <CardTitle><Loader2 className="h-6 w-6 animate-spin text-primary mr-2 inline-block" /> Loading Client...</CardTitle>
@@ -230,14 +238,14 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
   // --- Render Form ---
   return (
     <div className="flex flex-col gap-6 py-6">
-         <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
+         <Link href={`/clients/${clientId}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
-             Back to Dashboard
+             Back to Client Details
         </Link>
 
         <Card>
              <CardHeader>
-                <CardTitle>Edit Client: {clientData?.name}</CardTitle>
+                <CardTitle>Edit Client: {clientData?.name || clientId}</CardTitle>
                 <CardDescription>Modify the details of this client.</CardDescription>
             </CardHeader>
             <CardContent>

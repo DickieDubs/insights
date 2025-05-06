@@ -1,17 +1,34 @@
 
 'use client';
+export const runtime = 'edge';
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from "@/components/ui/input"; // Import Input component
+import { Input } from "@/components/ui/input";
 import { ArrowLeft, Settings, Save, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { use } from 'react'; // Import 'use'
+
+// Mock data - make surveys array accessible at module level
+const allSurveysData = [
+    { id: 'sur_1', name: 'Initial Concept Test' },
+    { id: 'sur_2', name: 'Packaging Preference' },
+    { id: 'sur_3', name: 'Taste Profile Analysis'},
+    { id: 'sur_4', name: 'Flavor Preference Ranking'},
+    // Add other surveys as needed for generateStaticParams
+];
+
+export async function generateStaticParams() {
+  return allSurveysData.map((survey) => ({
+    surveyId: survey.id,
+  }));
+}
+
 
 // Update params type to Promise<{ surveyId: string }>
 export default function SurveySettingsPage({ params }: { params: Promise<{ surveyId: string }> }) {
@@ -137,4 +154,3 @@ export default function SurveySettingsPage({ params }: { params: Promise<{ surve
     </div>
   );
 }
-
