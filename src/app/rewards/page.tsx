@@ -1,6 +1,5 @@
 
 'use client';
-export const runtime = 'edge';
 
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';

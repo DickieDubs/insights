@@ -1,5 +1,4 @@
 
-export const runtime = 'edge';
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, FileText, Calendar, Users, Target, ListChecks } from 'lucide-react';

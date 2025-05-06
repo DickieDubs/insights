@@ -1,6 +1,5 @@
 
 'use client'; // Mark as client component for form handling
-export const runtime = 'edge';
 
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
