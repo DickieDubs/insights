@@ -1,5 +1,6 @@
 
-'use client'; // Mark as client component for form handling
+'use client';
+export const runtime = 'edge';
 
 import React, { useState, useEffect, use } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,58 +25,45 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-
-
-// --- Mock Data ---
-const allClientsData = [
-    { id: 'cli_1', name: 'Gourmet Bites', industry: 'Food & Beverage', contactPerson: 'Alice Wonderland', email: 'alice@gourmetbites.com', phone: '555-1234', logoUrl: 'https://picsum.photos/seed/gourmet/64/64', campaigns: [ { id: 'camp_1', title: 'Spring Snack Launch', surveys: 3 }, { id: 'camp_2', title: 'Holiday Cookie Test', surveys: 2 } ], status: 'Active' },
-    { id: 'cli_2', name: 'Liquid Refreshments', industry: 'Beverages', contactPerson: 'Bob The Builder', email: 'bob@liquidrefresh.com', phone: '555-5678', logoUrl: 'https://picsum.photos/seed/liquid/64/64', campaigns: [ { id: 'camp_3', title: 'Beverage Taste Test Q2', surveys: 5 } ], status: 'Active'},
-    { id: 'cli_3', name: 'Morning Foods Inc.', industry: 'CPG', contactPerson: 'Charlie Chaplin', email: 'charlie@morningfoods.com', phone: '555-9101', logoUrl: 'https://picsum.photos/seed/morning/64/64', campaigns: [], status: 'Active' },
-    { id: 'cli_4', name: 'Quick Eats Co.', industry: 'Frozen Foods', contactPerson: 'Diana Prince', email: 'diana@quickeats.co', phone: '555-1121', logoUrl: 'https://picsum.photos/seed/quickeats/64/64', campaigns: [], status: 'Inactive' },
-    { id: 'cli_5', name: 'Healthy Snacks Ltd.', industry: 'Health Foods', contactPerson: 'Ethan Hunt', email: 'ethan@healthysnacks.com', phone: '555-1314', logoUrl: 'https://picsum.photos/seed/healthy/64/64', campaigns: [], status: 'Active' },
-];
+} from "@/components/ui/alert-dialog";
+import { mockClientsData, getClientById, updateMockClient, Client } from '@/lib/mock-data/clients'; // Import shared data
 
 export async function generateStaticParams() {
-  return allClientsData.map((client) => ({
-    clientId: client.id,
-  }));
+  return mockClientsData
+    .filter(client => client.id !== 'new') // Ensure 'new' is not treated as an ID
+    .map((client) => ({
+        clientId: client.id,
+    }));
 }
 
-const getClientData = async (clientId: string) => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-  const client = allClientsData.find(c => c.id === clientId);
-  return client || null;
+const getClientData = async (clientId: string): Promise<Client | null> => {
+  if (clientId === 'new') return null;
+  return getClientById(clientId);
 };
 
-// --- Mock Data for Selects ---
 const clientStatuses = ['Active', 'Inactive', 'Pending', 'Archived'];
-// Industries could be fetched or predefined
 const industries = ['Food & Beverage', 'Beverages', 'CPG', 'Frozen Foods', 'Health Foods', 'Retail', 'Other'];
 
-// --- Form Schema ---
 const clientFormSchema = z.object({
   name: z.string().min(2, { message: "Client name must be at least 2 characters." }).max(100),
   industry: z.string().min(1, { message: "Please select an industry." }),
   contactPerson: z.string().min(2, { message: "Contact name must be at least 2 characters." }).max(100),
   email: z.string().email({ message: "Please enter a valid email address." }),
-  phone: z.string().regex(/^\d{3}-\d{4}$/, { message: "Phone number must be in XXX-XXXX format." }).optional().or(z.literal('')), // Optional, specific format
+  phone: z.string().regex(/^\d{3}-\d{4}$/, { message: "Phone number must be in XXX-XXXX format." }).optional().or(z.literal('')),
   status: z.string().min(1, { message: "Please select a status." }),
-  // logoUrl is not typically edited in a simple form like this, handle separately if needed
 });
 
 type ClientFormValues = z.infer<typeof clientFormSchema>;
 
-// --- Edit Client Page Component ---
 export default function EditClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start true for initial load
+  const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [clientData, setClientData] = useState<ClientFormValues | null>(null); // Stores fetched data for display
+  const [clientData, setClientData] = useState<Client | null>(null);
   const [loadingError, setLoadingError] = useState<string | null>(null);
-  const { clientId } = use(params); // Use React's use() hook
+  const { clientId } = use(params);
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -89,7 +77,6 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
     },
   });
 
-  // --- Fetch existing client data ---
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -97,8 +84,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
       try {
         const data = await getClientData(clientId);
         if (data) {
-           setClientData(data); // Store original data if needed
-           // Reset form with fetched data
+           setClientData(data);
            form.reset({
                name: data.name || '',
                industry: data.industry || '',
@@ -109,87 +95,76 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
            });
         } else {
           setLoadingError(`Client with ID ${clientId} not found.`);
-           toast({
-               variant: "destructive",
-               title: "Error",
-               description: `Client not found.`,
-           });
-           // Optional: Redirect back
-           // router.push('/clients');
+           toast({ variant: "destructive", title: "Error", description: `Client not found.` });
         }
       } catch (error) {
         console.error("Error fetching client data:", error);
         setLoadingError("Failed to load client data.");
-         toast({
-            variant: "destructive",
-            title: "Loading Error",
-            description: "Could not load client details. Please try again.",
-         });
+         toast({ variant: "destructive", title: "Loading Error", description: "Could not load client details." });
       } finally {
         setIsLoading(false);
       }
     };
-    if (clientId) {
+    if (clientId && clientId !== 'new') {
         loadData();
+    } else if (clientId === 'new') {
+        setLoadingError(`Invalid client ID: "new"`);
+        setIsLoading(false);
     }
-  }, [clientId, form, toast]); // Include dependencies
+  }, [clientId, form, toast]);
 
+  const handleUpdateClient = async (formData: ClientFormValues) => {
+    if (!clientData) return;
+    setIsSaving(true);
+    
+    const updatedClient: Client = {
+        ...clientData, // Spread existing client data to preserve campaigns, logoUrl etc.
+        name: formData.name,
+        industry: formData.industry,
+        contactPerson: formData.contactPerson,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        status: formData.status as Client['status'],
+    };
 
-  // --- Handle Form Submission (Update) ---
-  const handleUpdateClient = async (data: ClientFormValues) => {
-    setIsLoading(true);
-    console.log("Updating client:", clientId, data);
-    // --- Replace with actual API call to update client ---
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-    // ---
+    console.log("Updating client:", clientId, updatedClient);
+    
+    const success = updateMockClient(updatedClient); // Use shared update function
 
-     toast({
-      title: "Client Updated",
-      description: `Client "${data.name}" has been successfully updated.`,
-    });
-    router.push(`/clients/${clientId}`); // Redirect back to detail page
-    // router.refresh(); // Or refresh data if staying
-
-    // Example error handling
-    // toast({
-    //   variant: "destructive",
-    //   title: "Update Failed",
-    //   description: "Could not update the client. Please try again.",
-    // });
-    // setIsLoading(false); // Only on error
+    if (success) {
+        toast({ title: "Client Updated", description: `Client "${updatedClient.name}" has been successfully updated.` });
+        setClientData(updatedClient); // Update local state for display
+        form.reset(formData); // Reset form with new data to clear dirty state
+        // router.push(`/clients/${clientId}`); // Optionally redirect or stay
+    } else {
+        toast({ variant: "destructive", title: "Update Failed", description: "Could not update the client." });
+    }
+    setIsSaving(false);
   };
 
-    // --- Handle Delete ---
   const handleDeleteClient = async () => {
     setIsDeleting(true);
     console.log("Deleting client:", clientId);
-    // --- Replace with actual API call to delete client ---
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-    // ---
-
-    toast({
-      title: "Client Deleted",
-      description: `Client has been successfully deleted.`,
-    });
-    router.push('/clients'); // Redirect to clients list
-
-    // Example error handling
-    // toast({
-    //   variant: "destructive",
-    //   title: "Delete Failed",
-    //   description: "Could not delete the client. Please try again.",
-    // });
-    // setIsDeleting(false);
+    // Simulate API call for deletion
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Remove from mockClientsData (in real app, API call)
+    const index = mockClientsData.findIndex(c => c.id === clientId);
+    if (index > -1) {
+        mockClientsData.splice(index, 1);
+        toast({ title: "Client Deleted", description: `Client has been successfully deleted.` });
+        router.push('/clients');
+    } else {
+         toast({ variant: "destructive", title: "Delete Failed", description: "Client not found for deletion." });
+         setIsDeleting(false);
+    }
   };
 
-
-  // --- Render Loading or Error State ---
-   if (isLoading && !form.formState.isDirty) { // Show loading only initially
+   if (isLoading) {
     return (
       <div className="flex flex-col gap-6 py-6">
-         <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
+         <Link href={`/clients/${clientId}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
-             Back to Dashboard
+             Back to Client Details
         </Link>
         <Card>
             <CardHeader>
@@ -197,35 +172,30 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                 <CardDescription>Fetching client details for editing.</CardDescription>
             </CardHeader>
              <CardContent className="space-y-4">
-                 {/* Skeleton loaders */}
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
-                 <div className="flex justify-between mt-6">
-                    <div className="h-10 w-24 bg-muted rounded animate-pulse"></div>
-                    <div className="h-10 w-24 bg-muted rounded animate-pulse"></div>
-                 </div>
              </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (loadingError) {
+  if (loadingError || !clientData) { // Also check if clientData is null
      return (
          <div className="flex flex-col gap-6 py-6 items-center">
-              <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 self-start w-fit">
+              <Link href="/clients" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 self-start w-fit">
                  <ArrowLeft className="h-4 w-4" />
-                 Back to Dashboard
+                 Back to Clients List
              </Link>
              <Card className="w-full max-w-lg border-destructive">
                  <CardHeader>
                      <CardTitle className="text-destructive">Error Loading Client</CardTitle>
                  </CardHeader>
                  <CardContent>
-                     <p>{loadingError}</p>
+                     <p>{loadingError || `Client with ID "${clientId}" could not be loaded.`}</p>
                      <Button variant="outline" className="mt-4" onClick={() => router.refresh()}>Try Again</Button>
                  </CardContent>
              </Card>
@@ -233,8 +203,6 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
      );
   }
 
-
-  // --- Render Form ---
   return (
     <div className="flex flex-col gap-6 py-6">
          <Link href={`/clients/${clientId}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
@@ -250,7 +218,6 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
             <CardContent>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleUpdateClient)} className="space-y-6">
-                        {/* Client Name */}
                          <FormField
                             control={form.control}
                             name="name"
@@ -258,7 +225,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                 <FormItem>
                                     <FormLabel>Client Name*</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., Gourmet Bites Inc." {...field} disabled={isLoading} />
+                                        <Input placeholder="e.g., Gourmet Bites Inc." {...field} disabled={isSaving} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -266,14 +233,13 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                         />
 
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             {/* Industry */}
                              <FormField
                                 control={form.control}
                                 name="industry"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Industry*</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={isSaving}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select industry" />
@@ -289,14 +255,13 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                     </FormItem>
                                 )}
                             />
-                            {/* Status */}
                             <FormField
                                 control={form.control}
                                 name="status"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Status*</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={isSaving}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select client status" />
@@ -314,9 +279,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                             />
                         </div>
 
-
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             {/* Contact Person */}
                              <FormField
                                 control={form.control}
                                 name="contactPerson"
@@ -324,13 +287,12 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                     <FormItem>
                                         <FormLabel>Contact Person*</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="e.g., Alice Wonderland" {...field} disabled={isLoading} />
+                                            <Input placeholder="e.g., Alice Wonderland" {...field} disabled={isSaving} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
-                             {/* Email */}
                              <FormField
                                 control={form.control}
                                 name="email"
@@ -338,7 +300,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                     <FormItem>
                                         <FormLabel>Email*</FormLabel>
                                         <FormControl>
-                                            <Input type="email" placeholder="e.g., contact@example.com" {...field} disabled={isLoading} />
+                                            <Input type="email" placeholder="e.g., contact@example.com" {...field} disabled={isSaving} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -346,7 +308,6 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                             />
                          </div>
 
-                          {/* Phone */}
                          <FormField
                             control={form.control}
                             name="phone"
@@ -354,19 +315,17 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                 <FormItem>
                                     <FormLabel>Phone (Optional)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., 555-1234" {...field} disabled={isLoading} />
+                                        <Input placeholder="e.g., 555-1234" {...field} disabled={isSaving} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
 
-
-                        {/* Actions */}
                         <div className="flex justify-between items-center pt-4">
                            <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button type="button" variant="destructive" disabled={isLoading || isDeleting}>
+                                    <Button type="button" variant="destructive" disabled={isSaving || isDeleting}>
                                         {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                                         Delete Client
                                     </Button>
@@ -392,8 +351,8 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                 </AlertDialogContent>
                             </AlertDialog>
 
-                             <Button type="submit" disabled={isLoading || isDeleting || !form.formState.isDirty}>
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                             <Button type="submit" disabled={isSaving || isDeleting || !form.formState.isDirty}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Save Changes
                             </Button>
                         </div>

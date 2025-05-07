@@ -1,9 +1,10 @@
 
+export const runtime = 'edge';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PlusCircle, MoreHorizontal, ArrowLeft } from 'lucide-react'; // Added ArrowLeft
+import { PlusCircle, MoreHorizontal, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -13,20 +14,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { getAllClients, Client } from '@/lib/mock-data/clients'; // Import shared data
+import { use } from 'react';
 
-// Mock data - replace with real data fetching later
-const clients = [
-  { id: 'cli_1', name: 'Gourmet Bites', industry: 'Food & Beverage', campaigns: 5, status: 'Active' },
-  { id: 'cli_2', name: 'Liquid Refreshments', industry: 'Beverages', campaigns: 3, status: 'Active' },
-  { id: 'cli_3', name: 'Morning Foods Inc.', industry: 'CPG', campaigns: 8, status: 'Active' },
-  { id: 'cli_4', name: 'Quick Eats Co.', industry: 'Frozen Foods', campaigns: 2, status: 'Inactive' },
-  { id: 'cli_5', name: 'Healthy Snacks Ltd.', industry: 'Health Foods', campaigns: 10, status: 'Active' },
-];
+const getClients = async (): Promise<Client[]> => {
+    return getAllClients();
+};
 
 export default function ClientsPage() {
+  const clients = use(getClients());
+
   return (
     <div className="flex flex-col gap-6 py-6">
-        {/* Back to Dashboard Link */}
          <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
@@ -35,7 +34,7 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-primary">Clients</h1>
         <Button asChild>
-           <Link href="/clients/new"> {/* Link to a future "Add Client" page */}
+           <Link href="/clients/new">
             <PlusCircle className="mr-2 h-4 w-4" /> Add Client
            </Link>
         </Button>
@@ -68,7 +67,7 @@ export default function ClientsPage() {
                      </Link>
                    </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{client.industry}</TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">{client.campaigns}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-muted-foreground">{client.campaigns.length}</TableCell> {/* Calculate length of campaigns array */}
                    <TableCell>
                       <Badge variant={client.status === 'Active' ? 'default' : 'secondary'}
                            className={`
@@ -100,10 +99,16 @@ export default function ClientsPage() {
                   </TableCell>
                 </TableRow>
               ))}
+               {clients.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+                        No clients found. Add one to get started!
+                    </TableCell>
+                </TableRow>
+            )}
             </TableBody>
           </Table>
         </CardContent>
-         {/* Potential CardFooter for pagination */}
       </Card>
     </div>
   );

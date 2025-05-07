@@ -1,4 +1,5 @@
 
+export const runtime = 'edge';
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, FileText, Calendar, Users, Target, ListChecks } from 'lucide-react';
@@ -7,43 +8,40 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { use } from 'react'; // Import 'use'
+import { use } from 'react';
+import { mockCampaignsData, getCampaignById, Campaign } from '@/lib/mock-data/campaigns'; // Import shared data
 
-// Mock data - make campaigns array accessible at module level
-const allCampaignsData = [
-    { id: 'camp_1', title: 'Spring Snack Launch', client: 'Gourmet Bites', clientId: 'cli_1', productType: 'Snacks', status: 'Active', startDate: '2024-03-01', endDate: '2024-04-30', targetAudience: 'Millennials, Urban Dwellers', surveys: [ {id: 'sur_1', name: 'Initial Concept Test', status: 'Active', responses: 152 }, {id: 'sur_2', name: 'Packaging Preference', status: 'Completed', responses: 210 }, {id: 'sur_3', name: 'Taste Profile Analysis', status: 'Planning', responses: 0 }] },
-    { id: 'camp_3', title: 'Beverage Taste Test Q2', client: 'Liquid Refreshments', clientId: 'cli_2', productType: 'Beverages', status: 'Completed', startDate: '2024-04-15', endDate: '2024-05-15', targetAudience: 'Gen Z, College Students', surveys: [ {id: 'sur_4', name: 'Flavor Preference Ranking', status: 'Completed', responses: 350 }, {id: 'sur_5', name: 'Brand Perception Survey', status: 'Completed', responses: 320 } ] },
-    // Add other campaigns if needed for generateStaticParams and data fetching
-];
-
+// Use allCampaignsData for generateStaticParams if it's still relevant for pre-building
+// Otherwise, if data is fully dynamic, this might change or be removed if not using full static export.
 export async function generateStaticParams() {
-  return allCampaignsData.map((campaign) => ({
-    campaignId: campaign.id,
-  }));
+  // Filter out "new" if it was ever part of IDs, or ensure IDs are always actual campaign IDs
+  return mockCampaignsData
+    .filter(campaign => campaign.id !== 'new') // Ensure 'new' is not treated as an ID
+    .map((campaign) => ({
+      campaignId: campaign.id,
+    }));
 }
 
-const getCampaignData = async (campaignId: string) => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 50));
-  const campaign = allCampaignsData.find(c => c.id === campaignId);
-  return campaign || { id: campaignId, title: 'Campaign Not Found', client: 'N/A', clientId: 'N/A', productType: 'N/A', status: 'N/A', startDate: 'N/A', endDate: 'N/A', targetAudience: 'N/A', surveys: [] }; // Basic fallback
+const getCampaignData = async (campaignId: string): Promise<Campaign | null> => {
+    // If 'new' is somehow passed as campaignId, treat as not found immediately
+    if (campaignId === 'new') {
+        return null;
+    }
+    return getCampaignById(campaignId);
 };
 
-// Update params type to Promise<{ campaignId: string }>
 export default function CampaignDetailPage({ params }: { params: Promise<{ campaignId: string }> }) {
-  // Unwrap the promise using React.use()
   const { campaignId } = use(params);
-  // Fetch data *after* unwrapping the promise
   const campaign = use(getCampaignData(campaignId));
 
-   if (campaign.title === 'Campaign Not Found') {
+   if (!campaign) {
      return (
         <div className="p-6 text-center">
             <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit mx-auto">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
             </Link>
-            <p className="text-destructive">Campaign with ID {campaignId} not found.</p>
+            <p className="text-destructive">Campaign with ID "{campaignId}" not found.</p>
         </div>
      );
   }
@@ -64,11 +62,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ campa
              <Badge variant={
                 campaign.status === 'Active' ? 'default' :
                 campaign.status === 'Completed' ? 'outline' :
-                campaign.status === 'Planning' ? 'secondary' : 'destructive'
+                campaign.status === 'Planning' || campaign.status === 'Draft' ? 'secondary' : // Treat Draft like Planning
+                'destructive' // Paused, Archived etc.
              } className={`text-base px-4 py-1
                 ${campaign.status === 'Active' ? 'bg-green-100 text-green-800' : ''}
                 ${campaign.status === 'Completed' ? 'bg-blue-100 text-blue-800' : ''}
-                ${campaign.status === 'Planning' ? 'bg-yellow-100 text-yellow-800' : ''}
+                ${campaign.status === 'Planning' || campaign.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : ''}
                 ${campaign.status === 'Paused' ? 'bg-orange-100 text-orange-800' : ''}
                 border-transparent font-semibold
              `}>
@@ -88,7 +87,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ campa
                     <Calendar className="h-5 w-5 text-muted-foreground mt-1" />
                     <div>
                         <p className="font-medium">Timeline</p>
-                        <p className="text-muted-foreground">{campaign.startDate} - {campaign.endDate}</p>
+                        <p className="text-muted-foreground">{new Date(campaign.startDate).toLocaleDateString()} - {new Date(campaign.endDate).toLocaleDateString()}</p>
                     </div>
                 </div>
                  <div className="flex items-start gap-3">
@@ -117,7 +116,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ campa
                  </Button>
             </CardHeader>
             <CardContent>
-                 {campaign.surveys.length > 0 ? (
+                 {(campaign.detailedSurveys && campaign.detailedSurveys.length > 0) ? (
                       <Table>
                         <TableHeader>
                             <TableRow>
@@ -127,7 +126,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ campa
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {campaign.surveys.map((survey) => (
+                            {campaign.detailedSurveys.map((survey) => (
                             <TableRow key={survey.id}>
                                 <TableCell className="font-medium">
                                     <Link href={`/surveys/${survey.id}`} className="hover:underline text-primary">

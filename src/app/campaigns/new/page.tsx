@@ -1,5 +1,6 @@
 
 'use client';
+export const runtime = 'edge';
 
 import React, { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,19 +16,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { DatePicker } from '@/components/ui/date-picker'; // Assuming you have a DatePicker component
-
-// Mock data for selects - replace with real data fetching later
-const mockClients = [
-  { id: 'cli_1', name: 'Gourmet Bites' },
-  { id: 'cli_2', name: 'Liquid Refreshments' },
-  { id: 'cli_3', name: 'Morning Foods Inc.' },
-  { id: 'cli_4', name: 'Quick Eats Co.' },
-  { id: 'cli_5', name: 'Healthy Snacks Ltd.' },
-];
+import { DatePicker } from '@/components/ui/date-picker';
+import { addMockCampaign } from '@/lib/mock-data/campaigns'; // Import shared add function
+import { mockClientsData as mockClients } from '@/lib/mock-data/clients'; // Import clients for dropdown
 
 const productTypes = ['Snacks', 'Beverages', 'Cereal', 'Frozen Meals', 'Health Foods', 'Dairy', 'Bakery', 'Other'];
-const campaignStatuses = ['Planning', 'Active', 'Paused', 'Completed', 'Archived'];
+const campaignStatuses = ['Planning', 'Active', 'Paused', 'Completed', 'Archived', 'Draft'];
 
 
 // Form Schema
@@ -68,21 +62,39 @@ export default function NewCampaignPage() {
 
   const handleCreateCampaign = async (data: CampaignFormValues) => {
     setIsLoading(true);
-    console.log("Creating new campaign:", data);
+    console.log("Creating new campaign with form data:", data);
+    
+    // Find the client name for the new campaign object
+    const client = mockClients.find(c => c.id === data.clientId);
+    if (!client) {
+        toast({ variant: "destructive", title: "Error", description: "Selected client not found." });
+        setIsLoading(false);
+        return;
+    }
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // Add to mock data store using the shared function
+      const newCampaign = addMockCampaign({
+        ...data,
+        // client: client.name, // addMockCampaign will derive client name if needed or it should be part of its input
+      });
 
-    // In a real app, you would get the new campaign ID from the API response
-    const newCampaignId = `camp_${Date.now()}`;
-
-    toast({
-      title: "Campaign Created",
-      description: `Campaign "${data.title}" has been successfully created.`,
-    });
-    // Redirect to the newly created campaign's detail page or the campaigns list
-    router.push(`/campaigns/${newCampaignId}`); // Or router.push('/campaigns');
-    setIsLoading(false);
+      toast({
+        title: "Campaign Created",
+        description: `Campaign "${newCampaign.title}" has been successfully created.`,
+      });
+      // Redirect to the newly created campaign's detail page or the campaigns list
+      router.push(`/campaigns/${newCampaign.id}`);
+    } catch (error) {
+        console.error("Error creating campaign:", error);
+        toast({
+            variant: "destructive",
+            title: "Creation Failed",
+            description: "Could not create the campaign. Please try again.",
+        });
+        setIsLoading(false);
+    }
+    // setIsLoading(false); // setLoading to false will be handled by redirect or error
   };
 
   return (

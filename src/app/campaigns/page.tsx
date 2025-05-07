@@ -1,9 +1,10 @@
 
+export const runtime = 'edge';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PlusCircle, MoreHorizontal, ArrowLeft } from 'lucide-react'; // Added ArrowLeft
+import { PlusCircle, MoreHorizontal, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -13,20 +14,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { getAllCampaigns, Campaign } from '@/lib/mock-data/campaigns'; // Import shared data
+import { use } from 'react';
 
-// Mock data - replace with real data fetching later
-const campaigns = [
-  { id: 'camp_1', title: 'Spring Snack Launch', client: 'Gourmet Bites', productType: 'Snacks', status: 'Active', surveys: 3 },
-  { id: 'camp_3', title: 'Beverage Taste Test Q2', client: 'Liquid Refreshments', productType: 'Beverages', status: 'Completed', surveys: 5 },
-  { id: 'camp_new_1', title: 'New Cereal Concept', client: 'Morning Foods Inc.', productType: 'Cereal', status: 'Planning', surveys: 1 },
-  { id: 'camp_fz_1', title: 'Frozen Meals Feedback', client: 'Quick Eats Co.', productType: 'Frozen Meals', status: 'Active', surveys: 2 },
-  { id: 'camp_sn_2', title: 'Healthy Bar Evaluation', client: 'Healthy Snacks Ltd.', productType: 'Snacks', status: 'Paused', surveys: 4 },
-];
+// Fetch data using React.use() for Server Components
+const getCampaigns = async (): Promise<Campaign[]> => {
+    return getAllCampaigns();
+};
 
 export default function CampaignsPage() {
+  const campaigns = use(getCampaigns());
+
   return (
     <div className="flex flex-col gap-6 py-6">
-       {/* Back to Dashboard Link */}
          <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
@@ -35,7 +35,7 @@ export default function CampaignsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-primary">Campaigns</h1>
         <Button asChild>
-          <Link href="/campaigns/new"> {/* Link to a future "Create Campaign" page */}
+          <Link href="/campaigns/new">
             <PlusCircle className="mr-2 h-4 w-4" /> Create Campaign
           </Link>
         </Button>
@@ -75,7 +75,7 @@ export default function CampaignsPage() {
                     <Badge variant={
                         campaign.status === 'Active' ? 'default' :
                         campaign.status === 'Completed' ? 'outline' :
-                        campaign.status === 'Planning' ? 'secondary' : 'destructive' // Assuming Paused or other states are destructive/secondary style
+                        campaign.status === 'Planning' ? 'secondary' : 'destructive'
                      } className={`
                         ${campaign.status === 'Active' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
                         ${campaign.status === 'Completed' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}
@@ -99,7 +99,9 @@ export default function CampaignsPage() {
                          <DropdownMenuItem asChild>
                             <Link href={`/campaigns/${campaign.id}`}>View Details</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                           <Link href={`/campaigns/${campaign.id}/edit`}>Edit</Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem>Duplicate</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">Archive</DropdownMenuItem>
                       </DropdownMenuContent>
@@ -107,10 +109,16 @@ export default function CampaignsPage() {
                   </TableCell>
                 </TableRow>
               ))}
+               {campaigns.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-4">
+                        No campaigns found. Create one to get started!
+                    </TableCell>
+                </TableRow>
+            )}
             </TableBody>
           </Table>
         </CardContent>
-         {/* Potential CardFooter for pagination */}
       </Card>
     </div>
   );
