@@ -1,5 +1,5 @@
 
-'use client'; // Mark as client component for form handling
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,24 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { addMockSurvey } from '@/app/surveys/page'; // Import the function to add survey
+import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
+import { addSurvey, getAllCampaigns, getAllRewardPrograms } from '@/lib/firebase/firestore-service';
+import type { SurveyFormValues, Campaign, RewardProgram, Survey } from '@/types';
 
 
-// --- Mock Data for Selects ---
-// In a real app, fetch these from your backend
-const campaigns = [
-  { id: 'camp_1', title: 'Spring Snack Launch' },
-  { id: 'camp_3', title: 'Beverage Taste Test Q2' },
-  { id: 'camp_new_1', title: 'New Cereal Concept' },
-];
-const rewardPrograms = [
-    { id: 'rew_1', name: 'Standard Points Program' },
-    { id: 'rew_2', name: 'Gift Card Raffle Q3' },
-];
 const surveyTypes = ['Concept Test', 'Preference Test', 'Sensory Test', 'Ranking', 'Brand Study', 'Design Feedback', 'Usage & Attitude', 'Other'];
+const surveyStatuses: Survey['status'][] = ['Draft', 'Planning', 'Active', 'Paused', 'Completed', 'Archived'];
 
 
 // --- Form Schema ---
@@ -37,75 +28,90 @@ const surveyFormSchema = z.object({
   name: z.string().min(3, { message: "Survey name must be at least 3 characters." }).max(100),
   description: z.string().max(500).optional(),
   campaignId: z.string().min(1, { message: "Please select a campaign." }),
-  // Status defaults to 'Draft' on creation, might not need user input initially
-  // status: z.string().min(1, { message: "Please select a status." }),
+  status: z.enum(surveyStatuses).default('Draft'),
   type: z.string().min(1, { message: "Please select a survey type." }),
-  rewardProgramId: z.string().optional().nullable(), // Allow empty/null string
+  rewardProgramId: z.string().optional().nullable(),
 });
 
-type SurveyFormValues = z.infer<typeof surveyFormSchema>;
 
-// --- New Survey Page Component ---
 export default function NewSurveyPage() {
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get search params
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  // Add state for fetching select options if needed
-  // const [campaignOptions, setCampaignOptions] = useState([]);
+  const [isFetchingData, setIsFetchingData] = useState(true);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [rewardPrograms, setRewardPrograms] = useState<RewardProgram[]>([]);
+
+  const preselectedCampaignId = searchParams.get('campaignId');
+  const preselectedClientId = searchParams.get('clientId');
 
   const form = useForm<SurveyFormValues>({
     resolver: zodResolver(surveyFormSchema),
-    defaultValues: { // Initialize with empty or default values
+    defaultValues: {
       name: '',
       description: '',
-      campaignId: '',
-      // status: 'Draft', // Default status
+      campaignId: '', // Initialize empty, will be set by useEffect if preselected
+      status: 'Draft',
       type: '',
       rewardProgramId: null,
     },
   });
 
-  // --- Fetch select options if needed ---
-  // useEffect(() => {
-  //   // Fetch campaigns, rewards etc. and set state
-  // }, []);
+  useEffect(() => {
+    async function fetchData() {
+      setIsFetchingData(true);
+      try {
+        const [fetchedCampaigns, fetchedRewards] = await Promise.all([
+          getAllCampaigns(),
+          getAllRewardPrograms()
+        ]);
+        setCampaigns(fetchedCampaigns);
+        setRewardPrograms(fetchedRewards);
+
+        if (preselectedCampaignId && fetchedCampaigns.some(c => c.id === preselectedCampaignId)) {
+          form.setValue('campaignId', preselectedCampaignId);
+        } else if (preselectedClientId && fetchedCampaigns.length > 0 && !preselectedCampaignId) {
+          const clientCampaign = fetchedCampaigns.find(c => c.clientId === preselectedClientId);
+          if (clientCampaign) {
+            form.setValue('campaignId', clientCampaign.id);
+          }
+        }
+
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Could not load necessary data." });
+      }
+      setIsFetchingData(false);
+    }
+    fetchData();
+  }, [toast, preselectedCampaignId, preselectedClientId, form]);
 
 
-  // --- Handle Form Submission (Create) ---
   const handleCreateSurvey = async (data: SurveyFormValues) => {
     setIsLoading(true);
-    const surveyDataToCreate = { ...data, status: 'Draft' }; // Add default status
-    console.log("Creating new survey:", surveyDataToCreate);
-
     try {
-        // --- Replace with actual API call to create survey ---
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-        // Simulate adding to our mock data store and getting the new ID
-        const newSurvey = addMockSurvey(surveyDataToCreate);
-        const newSurveyId = newSurvey.id;
-        // ---
-
+        const newSurveyId = await addSurvey(data);
         toast({
             title: "Survey Created",
             description: `Survey "${data.name}" has been created as a draft.`,
         });
-        // Redirect to the edit page of the newly created survey to add questions
-        router.push(`/surveys/${newSurveyId}/edit`);
-
+        router.push(`/surveys/${newSurveyId}/edit`); 
     } catch (error) {
         console.error("Error creating survey:", error);
         toast({
             variant: "destructive",
             title: "Creation Failed",
-            description: "Could not create the survey. Please try again.",
+            description: (error as Error).message || "Could not create the survey. Please try again.",
         });
-        setIsLoading(false); // Only set loading false on error
+        setIsLoading(false);
     }
-    // Don't set isLoading to false on success, let redirect happen
   };
 
+  const campaignsForSelection = preselectedClientId && !preselectedCampaignId
+    ? campaigns.filter(c => c.clientId === preselectedClientId)
+    : campaigns;
 
-  // --- Render Form ---
+
   return (
     <div className="flex flex-col gap-6 py-6">
          <Link href="/surveys" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
@@ -115,7 +121,7 @@ export default function NewSurveyPage() {
 
         <Card>
              <CardHeader>
-                <CardTitle>Create New Survey</CardTitle>
+                <CardTitle className="flex items-center gap-2"><PlusCircle className="h-6 w-6 text-primary" /> Create New Survey</CardTitle>
                 <CardDescription>Define the basic details for your new survey.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -149,27 +155,53 @@ export default function NewSurveyPage() {
                         />
 
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <FormField
+                           <FormField
                                 control={form.control}
                                 name="campaignId"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Campaign*</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select associated campaign" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {campaigns.map(campaign => (
-                                                    <SelectItem key={campaign.id} value={campaign.id}>{campaign.title}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
+                                render={({ field }) => {
+                                    const currentSelectedCampaign = campaigns.find(c => c.id === field.value);
+                                    const isCampaignPreselected = !!preselectedCampaignId && campaigns.some(c => c.id === preselectedCampaignId);
+
+                                    return (
+                                        <FormItem>
+                                            <FormLabel>Campaign*</FormLabel>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                value={field.value || ""}
+                                                disabled={isLoading || isFetchingData || isCampaignPreselected}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder={
+                                                            isFetchingData ? "Loading campaigns..." :
+                                                            currentSelectedCampaign ? `${currentSelectedCampaign.title} (${currentSelectedCampaign.clientName || 'N/A'})` :
+                                                            (preselectedClientId && !isCampaignPreselected && campaignsForSelection.length === 0) ? "No campaigns for this client" :
+                                                            "Select associated campaign"
+                                                        } />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {isCampaignPreselected && currentSelectedCampaign ? (
+                                                        <SelectItem key={currentSelectedCampaign.id} value={currentSelectedCampaign.id}>
+                                                            {currentSelectedCampaign.title} ({currentSelectedCampaign.clientName || 'N/A'})
+                                                        </SelectItem>
+                                                    ) : campaignsForSelection.length > 0 ? (
+                                                        campaignsForSelection.map(campaign => (
+                                                            <SelectItem key={campaign.id} value={campaign.id}>
+                                                                {campaign.title} ({campaign.clientName || 'N/A'})
+                                                            </SelectItem>
+                                                        ))
+                                                    ) : !isFetchingData ? (
+                                                        <SelectItem value="no-campaigns-placeholder-new-survey" disabled>
+                                                            {preselectedClientId && !isCampaignPreselected ? "No campaigns for this client." : "No campaigns found."}
+                                                        </SelectItem>
+                                                    ) : null}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    );
+                                }}
                             />
                              <FormField
                                 control={form.control}
@@ -177,7 +209,7 @@ export default function NewSurveyPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Survey Type*</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select survey type" />
@@ -195,8 +227,30 @@ export default function NewSurveyPage() {
                                 )}
                             />
                         </div>
-
-                         <FormField
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <FormField
+                                control={form.control}
+                                name="status"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Status*</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select survey status" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {surveyStatuses.map(status => (
+                                                    <SelectItem key={status} value={status}>{status}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
                                 control={form.control}
                                 name="rewardProgramId"
                                 render={({ field }) => (
@@ -204,12 +258,12 @@ export default function NewSurveyPage() {
                                         <FormLabel>Reward Program</FormLabel>
                                         <Select
                                             onValueChange={(value) => field.onChange(value === "none" ? null : value)}
-                                            value={field.value ?? "none"} // Use "none" for null/undefined
-                                            disabled={isLoading}
+                                            value={field.value ?? "none"}
+                                            disabled={isLoading || isFetchingData || rewardPrograms.length === 0}
                                         >
                                             <FormControl>
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Select reward program (optional)" />
+                                                    <SelectValue placeholder={isFetchingData ? "Loading rewards..." : "Select reward program (optional)"} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
@@ -217,6 +271,7 @@ export default function NewSurveyPage() {
                                                  {rewardPrograms.map(program => (
                                                     <SelectItem key={program.id} value={program.id}>{program.name}</SelectItem>
                                                 ))}
+                                                {!isFetchingData && rewardPrograms.length === 0 && <SelectItem value="no-rewards-placeholder" disabled>No reward programs found.</SelectItem>}
                                             </SelectContent>
                                         </Select>
                                          <FormDescription>Optionally link a reward for participants.</FormDescription>
@@ -224,11 +279,12 @@ export default function NewSurveyPage() {
                                     </FormItem>
                                 )}
                             />
+                        </div>
 
                         {/* Actions */}
                         <div className="flex justify-end pt-4">
-                             <Button type="submit" disabled={isLoading}>
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                             <Button type="submit" disabled={isLoading || isFetchingData}>
+                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                                 Create Survey & Add Questions
                             </Button>
                         </div>

@@ -4,14 +4,14 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft, ChevronDown } from "lucide-react" 
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet" 
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -19,6 +19,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -35,6 +41,8 @@ type SidebarContext = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  activeDropdown: string | null;
+  setActiveDropdown: (value: string | null) => void;
 }
 
 const SidebarContext = React.createContext<SidebarContext | null>(null)
@@ -54,6 +62,7 @@ const SidebarProvider = React.forwardRef<
     defaultOpen?: boolean
     open?: boolean
     onOpenChange?: (open: boolean) => void
+    defaultActiveDropdown?: string | null; 
   }
 >(
   (
@@ -61,6 +70,7 @@ const SidebarProvider = React.forwardRef<
       defaultOpen = true,
       open: openProp,
       onOpenChange: setOpenProp,
+      defaultActiveDropdown = null, 
       className,
       style,
       children,
@@ -70,9 +80,10 @@ const SidebarProvider = React.forwardRef<
   ) => {
     const isMobile = useIsMobile()
     const [openMobile, setOpenMobile] = React.useState(false)
+    // Initialize activeDropdown with defaultActiveDropdown or null
+    const [activeDropdown, setActiveDropdown] = React.useState<string | null>(defaultActiveDropdown);
 
-    // This is the internal state of the sidebar.
-    // We use openProp and setOpenProp for control from outside the component.
+
     const [_open, _setOpen] = React.useState(defaultOpen)
     const open = openProp ?? _open
     const setOpen = React.useCallback(
@@ -84,20 +95,17 @@ const SidebarProvider = React.forwardRef<
           _setOpen(openState)
         }
 
-        // This sets the cookie to keep the sidebar state.
         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       },
       [setOpenProp, open]
     )
 
-    // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
       return isMobile
-        ? setOpenMobile((open) => !open)
-        : setOpen((open) => !open)
+        ? setOpenMobile((openMobileState) => !openMobileState)
+        : setOpen((openState) => !openState)
     }, [isMobile, setOpen, setOpenMobile])
 
-    // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
         if (
@@ -113,8 +121,6 @@ const SidebarProvider = React.forwardRef<
       return () => window.removeEventListener("keydown", handleKeyDown)
     }, [toggleSidebar])
 
-    // We add a state so that we can do data-state="expanded" or "collapsed".
-    // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? "expanded" : "collapsed"
 
     const contextValue = React.useMemo<SidebarContext>(
@@ -126,8 +132,10 @@ const SidebarProvider = React.forwardRef<
         openMobile,
         setOpenMobile,
         toggleSidebar,
+        activeDropdown,
+        setActiveDropdown,
       }),
-      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, activeDropdown, setActiveDropdown]
     )
 
     return (
@@ -207,7 +215,7 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            {/* Visually hidden title for accessibility */}
+             {/* Ensure SheetTitle is present for accessibility, can be sr-only */}
             <SheetTitle className="sr-only">Mobile Navigation Menu</SheetTitle>
             <div className="flex h-full w-full flex-col">{children}</div>
           </SheetContent>
@@ -224,7 +232,6 @@ const Sidebar = React.forwardRef<
         data-variant={variant}
         data-side={side}
       >
-        {/* This is what handles the sidebar gap on desktop */}
         <div
           className={cn(
             "duration-200 relative h-svh w-[--sidebar-width] bg-transparent transition-[width] ease-linear",
@@ -241,7 +248,6 @@ const Sidebar = React.forwardRef<
             side === "left"
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-            // Adjust the padding for floating and inset variants.
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
               : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
@@ -400,21 +406,39 @@ SidebarSeparator.displayName = "SidebarSeparator"
 
 const SidebarContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div">
->(({ className, ...props }, ref) => {
+  React.ComponentProps<"div"> & React.ComponentProps<typeof Accordion>
+>(({ className, children, value: accordionValue, onValueChange: onAccordionValueChange, ...props }, ref) => {
+  const { activeDropdown, setActiveDropdown } = useSidebar();
+  
+  const currentAccordionValue = accordionValue !== undefined ? accordionValue : activeDropdown;
+  const handleAccordionValueChange = (val: string) => {
+    if (onAccordionValueChange) {
+      onAccordionValueChange(val);
+    } else {
+      setActiveDropdown(activeDropdown === val ? null : val); // Toggle behavior
+    }
+  };
+  
   return (
-    <div
+    <Accordion
       ref={ref}
+      type="single" 
+      collapsible 
+      value={currentAccordionValue || undefined} 
+      onValueChange={handleAccordionValueChange} 
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-1 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </Accordion>
   )
 })
 SidebarContent.displayName = "SidebarContent"
+
 
 const SidebarGroup = React.forwardRef<
   HTMLDivElement,
@@ -464,7 +488,6 @@ const SidebarGroupAction = React.forwardRef<
       data-sidebar="group-action"
       className={cn(
         "absolute right-3 top-3.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
-        // Increases the hit area of the button on mobile.
         "after:absolute after:-inset-2 after:md:hidden",
         "group-data-[collapsible=icon]:hidden",
         className
@@ -488,34 +511,107 @@ const SidebarGroupContent = React.forwardRef<
 ))
 SidebarGroupContent.displayName = "SidebarGroupContent"
 
+
 const SidebarMenu = React.forwardRef<
-  HTMLUListElement,
-  React.ComponentProps<"ul">
->(({ className, ...props }, ref) => (
-  <ul
-    ref={ref}
-    data-sidebar="menu"
-    className={cn("flex w-full min-w-0 flex-col gap-1", className)}
-    {...props}
-  />
-))
-SidebarMenu.displayName = "SidebarMenu"
+  HTMLDivElement, // Changed to HTMLDivElement as Accordion renders a div
+  React.ComponentPropsWithoutRef<typeof Accordion>
+>(({ className, children, value, onValueChange, ...props }, ref) => {
+  const { activeDropdown, setActiveDropdown, state: sidebarState } = useSidebar();
+
+  const currentAccordionValue = value !== undefined ? value : (sidebarState === "expanded" ? activeDropdown : null);
+
+  const handleAccordionValueChange = (val: string | null) => { // Allow null for collapse
+    if (sidebarState === "expanded") {
+      if (onValueChange) {
+        onValueChange(val || ''); // Pass empty string if null for Accordion's onValueChange
+      } else {
+        setActiveDropdown(val);
+      }
+    }
+  };
+  
+  return (
+    <Accordion
+      ref={ref}
+      type="single"
+      collapsible
+      value={currentAccordionValue || undefined} 
+      onValueChange={(val) => handleAccordionValueChange(val === currentAccordionValue ? null : val)} // Toggle on click
+      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+      {...props}
+    >
+      {children}
+    </Accordion>
+  );
+});
+SidebarMenu.displayName = "SidebarMenu";
+
 
 const SidebarMenuItem = React.forwardRef<
   HTMLLIElement,
-  React.ComponentProps<"li">
->(({ className, ...props }, ref) => (
-  <li
-    ref={ref}
-    data-sidebar="menu-item"
-    className={cn("group/menu-item relative", className)}
-    {...props}
-  />
-))
+  React.HTMLAttributes<HTMLLIElement> & { 
+    value?: string; 
+    isDropdown?: boolean; 
+  }
+>(({ className, children, value, isDropdown, ...props }, ref) => {
+  const { state: sidebarState } = useSidebar();
+  
+  let menuButtonElement: React.ReactElement | null = null;
+  let subMenuElement: React.ReactElement | null = null;
+  const otherChildrenToRender: React.ReactNode[] = [];
+
+  React.Children.forEach(children, (child) => {
+    if (React.isValidElement(child)) {
+      const displayName = (child.type as any).displayName || (child.type as any).name;
+      if ((displayName === "SidebarMenuButton" || child.type === SidebarMenuButton) && !menuButtonElement) {
+        menuButtonElement = child;
+      } else if ((displayName === "SidebarMenuSub" || child.type === SidebarMenuSub) && !subMenuElement) {
+        subMenuElement = child;
+      } else {
+        otherChildrenToRender.push(child);
+      }
+    } else {
+      otherChildrenToRender.push(child);
+    }
+  });
+
+
+  if (isDropdown && value && menuButtonElement && subMenuElement) {
+    return (
+      <AccordionItem value={value} className={cn("border-none p-0 group/menu-item", className)} ref={ref as React.Ref<HTMLDivElement>} {...props}>
+        <AccordionTrigger asChild className="hover:no-underline p-0 data-[state=open]:bg-sidebar-accent/50 data-[state=open]:text-sidebar-accent-foreground">
+          {React.cloneElement(menuButtonElement, {
+            isDropdownTrigger: true,
+          })}
+        </AccordionTrigger>
+        <AccordionContent className="overflow-hidden text-sm transition-all data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+           <div className={cn(sidebarState === "collapsed" ? "hidden" : "block", "pl-0 pt-1")}>
+             {subMenuElement}
+           </div>
+        </AccordionContent>
+         {otherChildrenToRender.length > 0 && otherChildrenToRender}
+      </AccordionItem>
+    );
+  }
+
+  // Non-dropdown item
+  return (
+    <li
+      ref={ref}
+      data-sidebar="menu-item"
+      className={cn("group/menu-item relative", className)}
+      {...props}
+    >
+      {menuButtonElement}
+      {otherChildrenToRender.length > 0 && otherChildrenToRender}
+    </li>
+  );
+});
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
+
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 group-data-[state=expanded]:mx-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 group-data-[state=expanded]:mx-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -542,6 +638,7 @@ const SidebarMenuButton = React.forwardRef<
     asChild?: boolean
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
+    isDropdownTrigger?: boolean
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
@@ -552,26 +649,66 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip,
       className,
+      children,
+      isDropdownTrigger = false,
       ...props
     },
     ref
   ) => {
     const Comp = asChild ? Slot : "button"
-    const { isMobile, state } = useSidebar()
+    const { state: sidebarState, isMobile } = useSidebar()
 
-    const button = (
-      <Comp
-        ref={ref}
-        data-sidebar="menu-button"
-        data-size={size}
-        data-active={isActive}
-        className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...props}
-      />
-    )
+    const buttonChildren = (
+        <>
+            {children}
+            {isDropdownTrigger && sidebarState === "expanded" && !isMobile && (
+              <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]/menu-item:rotate-180" />
+            )}
+        </>
+    );
+    
+    let buttonElement;
+    if (asChild && React.isValidElement(children)) {
+        buttonElement = (
+            <Comp
+                ref={ref}
+                data-sidebar="menu-button"
+                data-size={size}
+                data-active={isActive}
+                className={cn(sidebarMenuButtonVariants({ variant, size }), className, isDropdownTrigger ? "justify-between w-full" : "")}
+                {...props}
+            >
+                 {React.cloneElement(children, {
+                    // @ts-ignore
+                    children: (
+                        <>
+                            {children.props.children}
+                            {isDropdownTrigger && sidebarState === "expanded" && !isMobile && (
+                              <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]/menu-item:rotate-180" />
+                            )}
+                        </>
+                    )
+                 })}
+            </Comp>
+        );
+    } else {
+        buttonElement = (
+          <Comp
+            ref={ref}
+            data-sidebar="menu-button"
+            data-size={size}
+            data-active={isActive}
+            className={cn(sidebarMenuButtonVariants({ variant, size }), className, isDropdownTrigger ? "justify-between w-full" : "")}
+            {...props}
+          >
+            {buttonChildren}
+          </Comp>
+        )
+    }
+
 
     if (!tooltip) {
-      return button
+      return buttonElement
     }
 
     if (typeof tooltip === "string") {
@@ -582,11 +719,11 @@ const SidebarMenuButton = React.forwardRef<
 
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipTrigger asChild>{buttonElement}</TooltipTrigger>
         <TooltipContent
           side="right"
           align="center"
-          hidden={state !== "collapsed" || isMobile}
+          hidden={sidebarState !== "collapsed" || isMobile}
           {...tooltip}
         />
       </Tooltip>
@@ -594,6 +731,7 @@ const SidebarMenuButton = React.forwardRef<
   }
 )
 SidebarMenuButton.displayName = "SidebarMenuButton"
+
 
 const SidebarMenuAction = React.forwardRef<
   HTMLButtonElement,
@@ -610,7 +748,6 @@ const SidebarMenuAction = React.forwardRef<
       data-sidebar="menu-action"
       className={cn(
         "absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
-        // Increases the hit area of the button on mobile.
         "after:absolute after:-inset-2 after:md:hidden",
         "peer-data-[size=sm]/menu-button:top-1",
         "peer-data-[size=default]/menu-button:top-1.5",
@@ -653,7 +790,6 @@ const SidebarMenuSkeleton = React.forwardRef<
     showIcon?: boolean
   }
 >(({ className, showIcon = false, ...props }, ref) => {
-  // Random width between 50 to 90%.
   const width = React.useMemo(() => {
     return `${Math.floor(Math.random() * 40) + 50}%`
   }, [])

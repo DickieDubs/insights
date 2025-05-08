@@ -1,6 +1,5 @@
 
 'use client';
-export const runtime = 'edge';
 
 import React, { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,23 +14,20 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { addMockClient } from '@/lib/mock-data/clients'; // Import shared add function
+import { addClient } from '@/lib/firebase/firestore-service';
+import type { ClientFormValues, Client } from '@/types';
 
-// Mock Data for Selects
-const clientStatuses = ['Active', 'Inactive', 'Pending', 'Archived'];
+const clientStatuses: Client['status'][] = ['Active', 'Inactive', 'Pending', 'Archived'];
 const industries = ['Food & Beverage', 'Beverages', 'CPG', 'Frozen Foods', 'Health Foods', 'Retail', 'Other'];
 
-// Form Schema
 const clientFormSchema = z.object({
   name: z.string().min(2, { message: "Client name must be at least 2 characters." }).max(100),
   industry: z.string().min(1, { message: "Please select an industry." }),
   contactPerson: z.string().min(2, { message: "Contact name must be at least 2 characters." }).max(100),
   email: z.string().email({ message: "Please enter a valid email address." }),
-  phone: z.string().regex(/^\d{3}-\d{4}$/, { message: "Phone number must be in XXX-XXXX format." }).optional().or(z.literal('')),
-  status: z.string().min(1, { message: "Please select a status." }),
+  phone: z.string().regex(/^\d{3}-\d{3,4}-\d{4}$/, { message: "Phone number must be in XXX-XXX-XXXX or XXX-XXXX-XXXX format." }).optional().or(z.literal('')),
+  status: z.enum(clientStatuses),
 });
-
-type ClientFormValues = z.infer<typeof clientFormSchema>;
 
 export default function NewClientPage() {
   const router = useRouter();
@@ -46,7 +42,7 @@ export default function NewClientPage() {
       contactPerson: '',
       email: '',
       phone: '',
-      status: 'Active', // Default status
+      status: 'Active',
     },
   });
 
@@ -55,20 +51,20 @@ export default function NewClientPage() {
     console.log("Creating new client with form data:", data);
 
     try {
-        const newClient = addMockClient(data); // Use the shared add function
+        const newClientId = await addClient(data);
         toast({
             title: "Client Created",
-            description: `Client "${newClient.name}" has been successfully created.`,
+            description: `Client "${data.name}" has been successfully created.`,
         });
-        router.push(`/clients/${newClient.id}`); // Redirect to the new client's detail page
+        router.push(`/clients/${newClientId}`);
     } catch (error) {
         console.error("Error creating client:", error);
         toast({
             variant: "destructive",
             title: "Creation Failed",
-            description: "Could not create the client. Please try again.",
+            description: (error as Error).message || "Could not create the client. Please try again.",
         });
-        setIsLoading(false); // Only set loading false on error
+        setIsLoading(false);
     }
   };
 
@@ -89,7 +85,6 @@ export default function NewClientPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleCreateClient)} className="space-y-6">
-              {/* Client Name */}
               <FormField
                 control={form.control}
                 name="name"
@@ -105,7 +100,6 @@ export default function NewClientPage() {
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Industry */}
                 <FormField
                   control={form.control}
                   name="industry"
@@ -128,7 +122,6 @@ export default function NewClientPage() {
                     </FormItem>
                   )}
                 />
-                {/* Status */}
                 <FormField
                   control={form.control}
                   name="status"
@@ -154,7 +147,6 @@ export default function NewClientPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Contact Person */}
                 <FormField
                   control={form.control}
                   name="contactPerson"
@@ -168,7 +160,6 @@ export default function NewClientPage() {
                     </FormItem>
                   )}
                 />
-                {/* Email */}
                 <FormField
                   control={form.control}
                   name="email"
@@ -184,7 +175,6 @@ export default function NewClientPage() {
                 />
               </div>
 
-              {/* Phone */}
               <FormField
                 control={form.control}
                 name="phone"
@@ -192,14 +182,13 @@ export default function NewClientPage() {
                   <FormItem>
                     <FormLabel>Phone (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., 555-1234" {...field} disabled={isLoading} />
+                      <Input placeholder="e.g., 555-123-4567" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* Actions */}
               <div className="flex justify-end pt-4">
                 <Button type="submit" disabled={isLoading}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}

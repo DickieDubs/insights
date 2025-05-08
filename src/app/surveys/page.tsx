@@ -1,5 +1,4 @@
 
-export const runtime = 'edge';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -15,61 +14,40 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { getAllSurveys } from '@/lib/firebase/firestore-service';
+import type { Survey } from '@/types';
+import { use } from 'react';
+import { Timestamp } from 'firebase/firestore';
 
-// --- In-memory data store (replace with actual DB interaction) ---
-// This simulates data persistence across requests in a dev environment.
-// In a real app, this data would come from Firestore or another database.
-let mockSurveys = [
-  { id: 'sur_1', name: 'Initial Concept Test', campaign: 'Spring Snack Launch', campaignId: 'camp_1', status: 'Active', responses: 152, createdDate: '2024-03-05', questionCount: 10, type: 'Concept Test', rewardProgramId: 'rew_1' },
-  { id: 'sur_2', name: 'Packaging Preference', campaign: 'Spring Snack Launch', campaignId: 'camp_1', status: 'Completed', responses: 210, createdDate: '2024-03-15', questionCount: 8, type: 'Preference Test', rewardProgramId: null },
-  { id: 'sur_3', name: 'Taste Profile Analysis', campaign: 'Spring Snack Launch', campaignId: 'camp_1', status: 'Planning', responses: 0, createdDate: '2024-04-01', questionCount: 15, type: 'Sensory Test', rewardProgramId: 'rew_1' },
-  { id: 'sur_4', name: 'Flavor Preference Ranking', campaign: 'Beverage Taste Test Q2', campaignId: 'camp_3', status: 'Completed', responses: 350, createdDate: '2024-04-10', questionCount: 5, type: 'Ranking', rewardProgramId: 'rew_2' },
-  { id: 'sur_5', name: 'Brand Perception Survey', campaign: 'Beverage Taste Test Q2', campaignId: 'camp_3', status: 'Completed', responses: 320, createdDate: '2024-04-20', questionCount: 12, type: 'Brand Study', rewardProgramId: null },
-  { id: 'sur_6', name: 'Cereal Box Design Feedback', campaign: 'New Cereal Concept', campaignId: 'camp_new_1', status: 'Draft', responses: 0, createdDate: '2024-05-01', questionCount: 7, type: 'Design Feedback', rewardProgramId: null },
-];
-
-// Function to add a new survey (simulates DB insert)
-export const addMockSurvey = (surveyData: any) => {
-   const newSurvey = {
-      ...surveyData,
-      id: `sur_${Math.random().toString(36).substring(2, 8)}`, // Generate random ID
-      createdDate: new Date().toISOString().split('T')[0], // Set current date
-      responses: 0,
-      questionCount: 0, // Initially 0 questions
-      // Derive campaign name from ID if possible (using existing mock data structure)
-      campaign: mockCampaigns.find(c => c.id === surveyData.campaignId)?.title || 'Unknown Campaign',
-   };
-  mockSurveys.push(newSurvey);
-  console.log("Added mock survey:", newSurvey);
-  return newSurvey;
+// Helper to format Firestore Timestamp or date string/Date object
+const formatDate = (dateInput: Timestamp | Date | string | undefined): string => {
+  if (!dateInput) return 'N/A';
+  let date: Date;
+  if (dateInput instanceof Timestamp) {
+    date = dateInput.toDate();
+  } else if (typeof dateInput === 'string') {
+    date = new Date(dateInput);
+  } else {
+    date = dateInput; // Assumed to be Date object
+  }
+  
+  if (isNaN(date.getTime())) return 'Invalid Date';
+  
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-// Mock Campaigns for lookup
-const mockCampaigns = [
-  { id: 'camp_1', title: 'Spring Snack Launch' },
-  { id: 'camp_3', title: 'Beverage Taste Test Q2' },
-  { id: 'camp_new_1', title: 'New Cereal Concept' },
-];
-// --- End of in-memory data store ---
 
-
-// Helper to format date strings (optional)
-const formatDate = (dateString: string) => {
-    try {
-        return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch (e) {
-        return dateString; // Return original string if parsing fails
-    }
+async function getSurveysData(): Promise<Survey[]> {
+    return getAllSurveys(); // This will now fetch from Firestore
 }
 
 export default function SurveysPage() {
-  // Use the current state of mockSurveys for rendering
-  const surveys = [...mockSurveys].sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()); // Sort by most recent
+  const surveys = use(getSurveysData());
 
   return (
     <div className="flex flex-col gap-6 py-6">
         {/* Back to Dashboard Link */}
-         <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
+         <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
         </Link>
@@ -96,9 +74,9 @@ export default function SurveysPage() {
                 <TableHead className="hidden lg:table-cell">Campaign</TableHead>
                 <TableHead className="hidden sm:table-cell">Created</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell text-right">Responses</TableHead> {/* Adjusted breakpoint and alignment */}
-                <TableHead className="hidden lg:table-cell text-center">Reward</TableHead> {/* Centered */}
-                <TableHead className="text-right"> {/* Right align actions */}
+                <TableHead className="hidden md:table-cell text-right">Questions</TableHead> {/* Changed from Responses */}
+                <TableHead className="hidden lg:table-cell text-center">Reward</TableHead>
+                <TableHead className="text-right">
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
@@ -113,31 +91,31 @@ export default function SurveysPage() {
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                       <Link href={`/campaigns/${survey.campaignId}`} className="text-muted-foreground hover:underline text-xs">
-                        {survey.campaign}
+                        {survey.campaignName || survey.campaignId}
                       </Link>
                   </TableCell>
-                   <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">{formatDate(survey.createdDate)}</TableCell>
+                   <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">{formatDate(survey.createdAt)}</TableCell>
                   <TableCell>
                      <Badge variant={
                         survey.status === 'Active' ? 'default' :
                         survey.status === 'Completed' ? 'outline' :
-                        survey.status === 'Planning' ? 'secondary' :
-                        'secondary' // Draft or other states
+                        survey.status === 'Planning' || survey.status === 'Draft' ? 'secondary' :
+                        'destructive' // Paused or Archived
                         } className={`
                         ${survey.status === 'Active' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
                         ${survey.status === 'Completed' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}
-                        ${survey.status === 'Planning' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}
-                        ${survey.status === 'Draft' ? 'bg-gray-100 text-gray-800 hover:bg-gray-200' : ''}
+                        ${survey.status === 'Planning' || survey.status === 'Draft' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}
+                        ${survey.status === 'Paused' || survey.status === 'Archived' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' : ''}
                         border-transparent font-semibold text-xs
                      `}>
                         {survey.status}
                     </Badge>
                    </TableCell>
-                   <TableCell className="hidden md:table-cell text-right text-muted-foreground">{survey.responses.toLocaleString()}</TableCell>
+                   <TableCell className="hidden md:table-cell text-right text-muted-foreground">{survey.questions?.length || 0}</TableCell>
                     <TableCell className="hidden lg:table-cell text-center">
                         {survey.rewardProgramId ? (
                              <Link href={`/rewards?programId=${survey.rewardProgramId}`} title="View Reward Program">
-                                <Award className="h-4 w-4 text-accent hover:text-accent/80 mx-auto"/> {/* Added mx-auto for center */}
+                                <Award className="h-4 w-4 text-accent hover:text-accent/80 mx-auto"/>
                              </Link>
                         ) : (
                             <span className="text-muted-foreground/50">-</span>
@@ -166,9 +144,9 @@ export default function SurveysPage() {
                         <DropdownMenuItem asChild>
                              <Link href={`/surveys/${survey.id}/edit`}>Edit Survey</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem disabled>Duplicate</DropdownMenuItem>
+                        {/* <DropdownMenuItem disabled>Duplicate</DropdownMenuItem> */}
                          <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" disabled>Archive</DropdownMenuItem>
+                        {/* <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" disabled>Archive</DropdownMenuItem> */}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -180,7 +158,6 @@ export default function SurveysPage() {
                 <p className="text-center text-muted-foreground py-6">No surveys found. Create one to get started!</p>
             )}
         </CardContent>
-         {/* Potential CardFooter for pagination */}
       </Card>
     </div>
   );

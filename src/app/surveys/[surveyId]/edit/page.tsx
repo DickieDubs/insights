@@ -112,7 +112,7 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [surveyData, setSurveyData] = useState<Partial<SurveyFormValues> | null>(null); // Use partial for initial state
+  const [surveyData, setSurveyData] = useState<SurveyFormValues | null>(null); 
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const { surveyId } = use(params); // Destructure surveyId here
 
@@ -142,9 +142,8 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
       setIsLoading(true);
       setLoadingError(null);
       try {
-        const data = await getSurveyData(surveyId); // Use the destructured surveyId
+        const data = await getSurveyData(surveyId); 
         if (data) {
-           setSurveyData(data); // Keep original data separate if needed
            // Reset form with fetched data
            form.reset({
                name: data.name || '',
@@ -153,22 +152,21 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
                status: data.status || '',
                type: data.type || '',
                rewardProgramId: data.rewardProgramId || null, // Ensure null if not present
-               questions: (data.questions || []).map(q => ({ // Map questions, ensuring options exist
+               questions: (data.questions || []).map(q => ({ 
                     id: q.id,
                     text: q.text,
-                    type: q.type as any, // Cast type if necessary
-                    options: q.options ? q.options.map((opt, index) => ({ id: `opt_${index}`, value: typeof opt === 'string' ? opt : opt.value })) : [] // Map options correctly
+                    type: q.type as any, 
+                    options: q.options ? q.options.map((opt, index) => ({ id: `opt_${index}`, value: typeof opt === 'string' ? opt : opt.value })) : [] 
                 })),
            });
+           setSurveyData(form.getValues()); // Set surveyData after form reset
         } else {
-          setLoadingError(`Survey with ID ${surveyId} not found.`); // Use the destructured surveyId
+          setLoadingError(`Survey with ID ${surveyId} not found.`); 
            toast({
                variant: "destructive",
                title: "Error",
                description: `Survey not found.`,
            });
-           // Optional: Redirect back or show a more prominent error
-           // router.push('/surveys');
         }
       } catch (error) {
         console.error("Error fetching survey data:", error);
@@ -182,71 +180,40 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
         setIsLoading(false);
       }
     };
-    if (surveyId) { // Ensure surveyId is available before loading
+    if (surveyId) { 
         loadData();
     }
-     // Add surveyId to the dependency array
-     // form and toast are stable, so they might not be strictly necessary,
-     // but including them is safer if their identity could change.
   }, [surveyId, form, toast]);
 
 
   // --- Handle Form Submission (Update) ---
   const handleUpdateSurvey = async (data: SurveyFormValues) => {
     setIsLoading(true);
-    console.log("Updating survey:", surveyId, data); // Use the destructured surveyId
-    // --- Replace with actual API call to update survey ---
-    // Ensure questions data is structured correctly for your API
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
-    // ---
-
-     // Example success handling
+    console.log("Updating survey:", surveyId, data); 
+    await new Promise(resolve => setTimeout(resolve, 1500)); 
     toast({
       title: "Survey Updated",
       description: `Survey "${data.name}" has been successfully updated.`,
     });
-    // No redirect here, stay on edit page after saving
-    // router.push(`/surveys/${surveyId}`);
-    setIsLoading(false); // Set loading false after save attempt
-     form.reset(data); // Reset form with the just saved data to clear dirty state
-    // router.refresh(); // Or refresh data on the detail page if staying
-
-    // Example error handling
-    // toast({
-    //   variant: "destructive",
-    //   title: "Update Failed",
-    //   description: "Could not update the survey. Please try again.",
-    // });
-    // setIsLoading(false); // Only on error
+    setIsLoading(false); 
+     form.reset(data); 
   };
 
     // --- Handle Delete ---
   const handleDeleteSurvey = async () => {
     setIsDeleting(true);
-    console.log("Deleting survey:", surveyId); // Use the destructured surveyId
-    // --- Replace with actual API call to delete survey ---
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-    // ---
-
-     // Example success handling
+    console.log("Deleting survey:", surveyId); 
+    await new Promise(resolve => setTimeout(resolve, 1000)); 
     toast({
       title: "Survey Deleted",
       description: `Survey has been successfully deleted.`,
     });
-    router.push('/surveys'); // Redirect to surveys list
-
-    // Example error handling
-    // toast({
-    //   variant: "destructive",
-    //   title: "Delete Failed",
-    //   description: "Could not delete the survey. Please try again.",
-    // });
-    // setIsDeleting(false);
+    router.push('/surveys'); 
   };
 
 
   // --- Render Loading or Error State ---
-   if (isLoading && !form.formState.isDirty && !surveyData) { // Show loading skeleton only on initial load
+   if (isLoading && !form.formState.isDirty && !surveyData) { 
     return (
       <div className="flex flex-col gap-6 py-6">
          <Link href={`/surveys/${surveyId}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
@@ -259,7 +226,6 @@ export default function EditSurveyPage({ params }: { params: Promise<{ surveyId:
                 <CardDescription>Fetching survey details for editing.</CardDescription>
             </CardHeader>
              <CardContent className="space-y-4">
-                 {/* Skeleton loaders */}
                  <div className="h-10 bg-muted rounded animate-pulse"></div>
                  <div className="h-20 bg-muted rounded animate-pulse"></div>
                  <div className="h-10 bg-muted rounded animate-pulse"></div>

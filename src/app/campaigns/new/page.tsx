@@ -1,8 +1,7 @@
 
 'use client';
-export const runtime = 'edge';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -15,13 +14,13 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DatePicker } from '@/components/ui/date-picker';
-import { addMockCampaign } from '@/lib/mock-data/campaigns'; // Import shared add function
-import { mockClientsData as mockClients } from '@/lib/mock-data/clients'; // Import clients for dropdown
+import { addCampaign, getAllClients } from '@/lib/firebase/firestore-service';
+import type { CampaignFormValues, Client, Campaign } from '@/types';
 
 const productTypes = ['Snacks', 'Beverages', 'Cereal', 'Frozen Meals', 'Health Foods', 'Dairy', 'Bakery', 'Other'];
-const campaignStatuses = ['Planning', 'Active', 'Paused', 'Completed', 'Archived', 'Draft'];
+const campaignStatuses: Campaign['status'][] = ['Planning', 'Active', 'Paused', 'Completed', 'Archived', 'Draft'];
 
 
 // Form Schema
@@ -29,7 +28,7 @@ const campaignFormSchema = z.object({
   title: z.string().min(3, { message: "Campaign title must be at least 3 characters." }).max(100),
   clientId: z.string().min(1, { message: "Please select a client." }),
   productType: z.string().min(1, { message: "Please select a product type." }),
-  status: z.string().min(1, { message: "Please select a status." }).default('Planning'),
+  status: z.enum(campaignStatuses).default('Planning'),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
   targetAudience: z.string().min(3, { message: "Target audience description is required." }).max(200),
@@ -39,18 +38,22 @@ const campaignFormSchema = z.object({
   path: ["endDate"],
 });
 
-type CampaignFormValues = z.infer<typeof campaignFormSchema>;
 
 export default function NewCampaignPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingClients, setIsFetchingClients] = useState(true);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  const preselectedClientId = searchParams.get('clientId');
 
   const form = useForm<CampaignFormValues>({
     resolver: zodResolver(campaignFormSchema),
     defaultValues: {
       title: '',
-      clientId: '',
+      clientId: preselectedClientId || '',
       productType: '',
       status: 'Planning',
       startDate: undefined,
@@ -60,41 +63,41 @@ export default function NewCampaignPage() {
     },
   });
 
+  useEffect(() => {
+    async function fetchClients() {
+      setIsFetchingClients(true);
+      try {
+        const fetchedClients = await getAllClients();
+        setClients(fetchedClients);
+        if (preselectedClientId && fetchedClients.some(c => c.id === preselectedClientId)) {
+          form.setValue('clientId', preselectedClientId);
+        }
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Could not load clients." });
+      }
+      setIsFetchingClients(false);
+    }
+    fetchClients();
+  }, [toast, preselectedClientId, form]);
+
   const handleCreateCampaign = async (data: CampaignFormValues) => {
     setIsLoading(true);
-    console.log("Creating new campaign with form data:", data);
-    
-    // Find the client name for the new campaign object
-    const client = mockClients.find(c => c.id === data.clientId);
-    if (!client) {
-        toast({ variant: "destructive", title: "Error", description: "Selected client not found." });
-        setIsLoading(false);
-        return;
-    }
-
     try {
-      // Add to mock data store using the shared function
-      const newCampaign = addMockCampaign({
-        ...data,
-        // client: client.name, // addMockCampaign will derive client name if needed or it should be part of its input
-      });
-
+      const newCampaignId = await addCampaign(data);
       toast({
         title: "Campaign Created",
-        description: `Campaign "${newCampaign.title}" has been successfully created.`,
+        description: `Campaign "${data.title}" has been successfully created.`,
       });
-      // Redirect to the newly created campaign's detail page or the campaigns list
-      router.push(`/campaigns/${newCampaign.id}`);
+      router.push(`/campaigns/${newCampaignId}`);
     } catch (error) {
         console.error("Error creating campaign:", error);
         toast({
             variant: "destructive",
             title: "Creation Failed",
-            description: "Could not create the campaign. Please try again.",
+            description: (error as Error).message || "Could not create the campaign. Please try again.",
         });
         setIsLoading(false);
     }
-    // setIsLoading(false); // setLoading to false will be handled by redirect or error
   };
 
   return (
@@ -135,16 +138,17 @@ export default function NewCampaignPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Client*</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading || isFetchingClients}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select client" />
+                            <SelectValue placeholder={isFetchingClients ? "Loading clients..." : "Select client"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {mockClients.map(client => (
+                          {clients.map(client => (
                             <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
                           ))}
+                           {clients.length === 0 && !isFetchingClients && <SelectItem value="" disabled>No clients found. Add one first.</SelectItem>}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -253,7 +257,7 @@ export default function NewCampaignPage() {
               />
 
               <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={isLoading || isFetchingClients}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                   Create Campaign
                 </Button>

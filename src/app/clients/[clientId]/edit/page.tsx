@@ -1,6 +1,4 @@
-
 'use client';
-export const runtime = 'edge';
 
 import React, { useState, useEffect, use } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,22 +24,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { mockClientsData, getClientById, updateMockClient, Client } from '@/lib/mock-data/clients'; // Import shared data
+import { getClientById, updateClient, deleteClient } from '@/lib/firebase/firestore-service';
+import type { Client, ClientFormValues } from '@/types';
 
-export async function generateStaticParams() {
-  return mockClientsData
-    .filter(client => client.id !== 'new') // Ensure 'new' is not treated as an ID
-    .map((client) => ({
-        clientId: client.id,
-    }));
-}
 
-const getClientData = async (clientId: string): Promise<Client | null> => {
-  if (clientId === 'new') return null;
-  return getClientById(clientId);
-};
-
-const clientStatuses = ['Active', 'Inactive', 'Pending', 'Archived'];
+const clientStatuses: Client['status'][] = ['Active', 'Inactive', 'Pending', 'Archived'];
 const industries = ['Food & Beverage', 'Beverages', 'CPG', 'Frozen Foods', 'Health Foods', 'Retail', 'Other'];
 
 const clientFormSchema = z.object({
@@ -49,19 +36,18 @@ const clientFormSchema = z.object({
   industry: z.string().min(1, { message: "Please select an industry." }),
   contactPerson: z.string().min(2, { message: "Contact name must be at least 2 characters." }).max(100),
   email: z.string().email({ message: "Please enter a valid email address." }),
-  phone: z.string().regex(/^\d{3}-\d{4}$/, { message: "Phone number must be in XXX-XXXX format." }).optional().or(z.literal('')),
-  status: z.string().min(1, { message: "Please select a status." }),
+  phone: z.string().regex(/^\d{3}-\d{3,4}-\d{4}$/, { message: "Phone number must be in XXX-XXX-XXXX or XXX-XXXX-XXXX format." }).optional().or(z.literal('')),
+  status: z.enum(clientStatuses),
 });
 
-type ClientFormValues = z.infer<typeof clientFormSchema>;
 
 export default function EditClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true); // Start true for initial load
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [clientData, setClientData] = useState<Client | null>(null);
+  const [clientData, setClientData] = useState<Client | null>(null); // To store full client data if needed
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const { clientId } = use(params);
 
@@ -73,7 +59,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
       contactPerson: '',
       email: '',
       phone: '',
-      status: '',
+      status: 'Active',
     },
   });
 
@@ -82,16 +68,16 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
       setIsLoading(true);
       setLoadingError(null);
       try {
-        const data = await getClientData(clientId);
+        const data = await getClientById(clientId);
         if (data) {
-           setClientData(data);
-           form.reset({
+           setClientData(data); // Store the full client object
+           form.reset({ // Populate form with fetched data
                name: data.name || '',
                industry: data.industry || '',
                contactPerson: data.contactPerson || '',
                email: data.email || '',
                phone: data.phone || '',
-               status: data.status || '',
+               status: data.status || 'Active',
            });
         } else {
           setLoadingError(`Client with ID ${clientId} not found.`);
@@ -100,16 +86,13 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
       } catch (error) {
         console.error("Error fetching client data:", error);
         setLoadingError("Failed to load client data.");
-         toast({ variant: "destructive", title: "Loading Error", description: "Could not load client details." });
+         toast({ variant: "destructive", title: "Loading Error", description: (error as Error).message || "Could not load client details." });
       } finally {
         setIsLoading(false);
       }
     };
-    if (clientId && clientId !== 'new') {
+    if (clientId) { // Ensure clientId is available
         loadData();
-    } else if (clientId === 'new') {
-        setLoadingError(`Invalid client ID: "new"`);
-        setIsLoading(false);
     }
   }, [clientId, form, toast]);
 
@@ -117,44 +100,27 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
     if (!clientData) return;
     setIsSaving(true);
     
-    const updatedClient: Client = {
-        ...clientData, // Spread existing client data to preserve campaigns, logoUrl etc.
-        name: formData.name,
-        industry: formData.industry,
-        contactPerson: formData.contactPerson,
-        email: formData.email,
-        phone: formData.phone || undefined,
-        status: formData.status as Client['status'],
-    };
-
-    console.log("Updating client:", clientId, updatedClient);
-    
-    const success = updateMockClient(updatedClient); // Use shared update function
-
-    if (success) {
-        toast({ title: "Client Updated", description: `Client "${updatedClient.name}" has been successfully updated.` });
-        setClientData(updatedClient); // Update local state for display
+    try {
+        await updateClient(clientId, formData);
+        toast({ title: "Client Updated", description: `Client "${formData.name}" has been successfully updated.` });
+        // Update local clientData state if necessary, or rely on re-fetch/navigation
+        setClientData(prev => prev ? { ...prev, ...formData } : null); 
         form.reset(formData); // Reset form with new data to clear dirty state
-        // router.push(`/clients/${clientId}`); // Optionally redirect or stay
-    } else {
-        toast({ variant: "destructive", title: "Update Failed", description: "Could not update the client." });
+        // router.push(`/clients/${clientId}`); // Optional: redirect back to detail page
+    } catch (error) {
+         toast({ variant: "destructive", title: "Update Failed", description: (error as Error).message || "Could not update the client." });
     }
     setIsSaving(false);
   };
 
   const handleDeleteClient = async () => {
     setIsDeleting(true);
-    console.log("Deleting client:", clientId);
-    // Simulate API call for deletion
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // Remove from mockClientsData (in real app, API call)
-    const index = mockClientsData.findIndex(c => c.id === clientId);
-    if (index > -1) {
-        mockClientsData.splice(index, 1);
+    try {
+        await deleteClient(clientId);
         toast({ title: "Client Deleted", description: `Client has been successfully deleted.` });
         router.push('/clients');
-    } else {
-         toast({ variant: "destructive", title: "Delete Failed", description: "Client not found for deletion." });
+    } catch (error) {
+         toast({ variant: "destructive", title: "Delete Failed", description: (error as Error).message || "Could not delete the client." });
          setIsDeleting(false);
     }
   };
@@ -183,7 +149,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
     );
   }
 
-  if (loadingError || !clientData) { // Also check if clientData is null
+  if (loadingError || !clientData) {
      return (
          <div className="flex flex-col gap-6 py-6 items-center">
               <Link href="/clients" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 self-start w-fit">
@@ -315,7 +281,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                 <FormItem>
                                     <FormLabel>Phone (Optional)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., 555-1234" {...field} disabled={isSaving} />
+                                        <Input placeholder="e.g., 555-123-4567" {...field} disabled={isSaving} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -335,7 +301,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                         <AlertDialogDescription>
                                             This action cannot be undone. This will permanently delete the client
-                                            and all associated campaigns and surveys.
+                                            and all associated data. This might include campaigns and surveys if they are directly linked without a cascading delete strategy.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -358,8 +324,4 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                         </div>
                     </form>
                 </Form>
-            </CardContent>
-        </Card>
-    </div>
-  );
-}
+            </CardContent

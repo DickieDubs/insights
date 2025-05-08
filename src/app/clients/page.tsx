@@ -1,6 +1,3 @@
-
-export const runtime = 'edge';
-
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,15 +11,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { getAllClients, Client } from '@/lib/mock-data/clients'; // Import shared data
+import { getAllClients } from '@/lib/firebase/firestore-service'; 
+import type { Client } from '@/types';
 import { use } from 'react';
 
-const getClients = async (): Promise<Client[]> => {
+// Data fetching for Server Component
+async function getClientsData(): Promise<Client[]> {
     return getAllClients();
-};
+}
 
 export default function ClientsPage() {
-  const clients = use(getClients());
+  const clients = use(getClientsData());
 
   return (
     <div className="flex flex-col gap-6 py-6">
@@ -67,7 +66,7 @@ export default function ClientsPage() {
                      </Link>
                    </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{client.industry}</TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">{client.campaigns.length}</TableCell> {/* Calculate length of campaigns array */}
+                  <TableCell className="hidden sm:table-cell text-muted-foreground">{client.campaigns?.length || 0}</TableCell>
                    <TableCell>
                       <Badge variant={client.status === 'Active' ? 'default' : 'secondary'}
                            className={`
@@ -93,7 +92,8 @@ export default function ClientsPage() {
                         <DropdownMenuItem asChild>
                             <Link href={`/clients/${client.id}/edit`}>Edit</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">Delete</DropdownMenuItem>
+                        {/* Delete functionality will be added in edit page or via a server action */}
+                        {/* <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">Delete</DropdownMenuItem> */}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

@@ -1,14 +1,14 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Award, Gift, PlusCircle, ArrowLeft, Trash2, Edit3, Save, Loader2, Eye } from 'lucide-react';
+import { Award, Gift, PlusCircle, ArrowLeft, Edit3, Save, Loader2 } from 'lucide-react'; // Removed Trash2, Eye
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -23,43 +23,14 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import type { RewardProgram, RedemptionItem } from '@/types';
+import {
+    addRewardProgram, getAllRewardPrograms, updateRewardProgram, deleteRewardProgram,
+    addRedemptionItem, getAllRedemptionItems, updateRedemptionItem, deleteRedemptionItem
+} from '@/lib/firebase/firestore-service';
+import { Timestamp } from 'firebase/firestore';
 
-// Mock data - replace with real data
-type RewardProgram = {
-  id: string;
-  name: string;
-  type: 'Points' | 'Raffle' | 'Bonus' | 'Other';
-  status: 'Active' | 'Inactive' | 'Draft';
-  description: string;
-  config: {
-    pointsPerSurvey?: number;
-    entryPerSurvey?: number;
-    bonusAmount?: string;
-    condition?: string;
-  };
-};
-
-type RedemptionItem = {
-    id: string;
-    name: string;
-    type: 'Gift Card' | 'Coupon' | 'Merchandise' | 'Other';
-    pointsCost?: number;
-    stock?: number;
-    isActive: boolean;
-};
-
-const initialRewardsPrograms: RewardProgram[] = [
-  { id: 'rew_1', name: 'Standard Points Program', type: 'Points', status: 'Active', description: 'Earn points for each survey completed.', config: { pointsPerSurvey: 10 } },
-  { id: 'rew_2', name: 'Gift Card Raffle Q3', type: 'Raffle', status: 'Active', description: 'Get a raffle entry for a chance to win gift cards.', config: { entryPerSurvey: 1 } },
-  { id: 'rew_3', name: 'Early Bird Bonus', type: 'Bonus', status: 'Inactive', description: 'Special bonus for the first 100 respondents.', config: { bonusAmount: '$5 Coupon', condition: 'First 100 responses' } },
-];
-
-const initialRedemptionItems: RedemptionItem[] = [
-    { id: 'item_1', name: '$10 Amazon Gift Card', type: 'Gift Card', pointsCost: 100, stock: 50, isActive: true },
-    { id: 'item_2', name: '20% Off Coupon - SnackCo', type: 'Coupon', pointsCost: 50, isActive: true },
-    { id: 'item_3', name: 'Branded Mug', type: 'Merchandise', pointsCost: 150, stock: 20, isActive: false },
-];
-
+// Mock data for recent redemptions - this would typically come from a 'redemptions' collection
 const recentRedemptions = [
   { id: 'red_1', userId: 'user_abc', userName: 'John D.', reward: '$10 Amazon Card', pointsCost: 100, date: '2024-04-28' },
   { id: 'red_2', userId: 'user_xyz', userName: 'Jane S.', reward: '20% Off Coupon - SnackCo', pointsCost: 50, date: '2024-04-25' },
@@ -67,8 +38,10 @@ const recentRedemptions = [
 
 
 export default function RewardsPage() {
-  const [rewardsPrograms, setRewardsPrograms] = useState<RewardProgram[]>(initialRewardsPrograms);
-  const [redemptionItems, setRedemptionItems] = useState<RedemptionItem[]>(initialRedemptionItems);
+  const [rewardsPrograms, setRewardsPrograms] = useState<RewardProgram[]>([]);
+  const [redemptionItems, setRedemptionItems] = useState<RedemptionItem[]>([]);
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [currentProgram, setCurrentProgram] = useState<Partial<RewardProgram> | null>(null);
@@ -76,13 +49,33 @@ export default function RewardsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
+  useEffect(() => {
+    async function loadData() {
+      setIsLoadingPrograms(true);
+      setIsLoadingItems(true);
+      try {
+        const [programs, items] = await Promise.all([
+          getAllRewardPrograms(),
+          getAllRedemptionItems()
+        ]);
+        setRewardsPrograms(programs);
+        setRedemptionItems(items);
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Error Loading Data', description: (error as Error).message });
+      }
+      setIsLoadingPrograms(false);
+      setIsLoadingItems(false);
+    }
+    loadData();
+  }, [toast]);
+
   const handleOpenProgramModal = (program?: RewardProgram) => {
-    setCurrentProgram(program || { name: '', type: 'Points', status: 'Draft', description: '', config: {} });
+    setCurrentProgram(program ? { ...program, config: program.config || {} } : { name: '', type: 'Points', status: 'Draft', description: '', config: {} });
     setIsProgramModalOpen(true);
   };
 
   const handleOpenItemModal = (item?: RedemptionItem) => {
-    setCurrentItem(item || { name: '', type: 'Gift Card', isActive: true });
+    setCurrentItem(item || { name: '', type: 'Gift Card', isActive: true, pointsCost: 0, stock: null });
     setIsItemModalOpen(true);
   }
 
@@ -92,16 +85,24 @@ export default function RewardsPage() {
         return;
     }
     setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    try {
+      const programDataToSave = { ...currentProgram } as Omit<RewardProgram, 'id' | 'createdAt' | 'updatedAt'>;
+      // Ensure config is an object, even if empty
+      programDataToSave.config = programDataToSave.config || {};
 
-    if (currentProgram.id) { // Editing existing
-      setRewardsPrograms(prev => prev.map(p => p.id === currentProgram!.id ? currentProgram as RewardProgram : p));
-      toast({ title: 'Program Updated', description: `"${currentProgram.name}" has been updated.` });
-    } else { // Creating new
-      const newProgram = { ...currentProgram, id: `rew_${Date.now()}` } as RewardProgram;
-      setRewardsPrograms(prev => [...prev, newProgram]);
-      toast({ title: 'Program Created', description: `"${newProgram.name}" has been created.` });
+
+      if (currentProgram.id) { 
+        await updateRewardProgram(currentProgram.id, programDataToSave);
+        setRewardsPrograms(prev => prev.map(p => p.id === currentProgram!.id ? { ...p, ...programDataToSave, updatedAt: Timestamp.now() } as RewardProgram : p));
+        toast({ title: 'Program Updated', description: `"${currentProgram.name}" has been updated.` });
+      } else { 
+        const newProgramId = await addRewardProgram(programDataToSave);
+        setRewardsPrograms(prev => [...prev, { ...programDataToSave, id: newProgramId, createdAt: Timestamp.now(), updatedAt: Timestamp.now() }]);
+        toast({ title: 'Program Created', description: `"${programDataToSave.name}" has been created.` });
+      }
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Error Saving Program', description: (error as Error).message });
     }
     setIsSaving(false);
     setIsProgramModalOpen(false);
@@ -114,24 +115,61 @@ export default function RewardsPage() {
         return;
     }
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    try {
+        const itemDataToSave = { ...currentItem } as Omit<RedemptionItem, 'id' | 'createdAt' | 'updatedAt'>;
+        // Ensure pointsCost is a number or undefined, stock is number or null
+        itemDataToSave.pointsCost = itemDataToSave.pointsCost ? Number(itemDataToSave.pointsCost) : undefined;
+        itemDataToSave.stock = itemDataToSave.stock === undefined || itemDataToSave.stock === null ? null : Number(itemDataToSave.stock);
 
-    if (currentItem.id) {
-        setRedemptionItems(prev => prev.map(i => i.id === currentItem!.id ? currentItem as RedemptionItem : i));
-        toast({ title: 'Item Updated', description: `"${currentItem.name}" has been updated.` });
-    } else {
-        const newItem = { ...currentItem, id: `item_${Date.now()}` } as RedemptionItem;
-        setRedemptionItems(prev => [...prev, newItem]);
-        toast({ title: 'Item Added', description: `"${newItem.name}" has been added to the catalog.` });
+
+        if (currentItem.id) {
+            await updateRedemptionItem(currentItem.id, itemDataToSave);
+            setRedemptionItems(prev => prev.map(i => i.id === currentItem!.id ? { ...i, ...itemDataToSave, updatedAt: Timestamp.now() } as RedemptionItem : i));
+            toast({ title: 'Item Updated', description: `"${currentItem.name}" has been updated.` });
+        } else {
+            const newItemId = await addRedemptionItem(itemDataToSave);
+            setRedemptionItems(prev => [...prev, { ...itemDataToSave, id: newItemId, createdAt: Timestamp.now(), updatedAt: Timestamp.now() }]);
+            toast({ title: 'Item Added', description: `"${itemDataToSave.name}" has been added.` });
+        }
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Error Saving Item', description: (error as Error).message });
     }
     setIsSaving(false);
     setIsItemModalOpen(false);
     setCurrentItem(null);
   };
+  
+  const handleDeleteProgram = async (programId: string) => {
+    if (!window.confirm("Are you sure you want to delete this reward program? This action cannot be undone.")) return;
+    setIsSaving(true); // Use generic saving loader
+    try {
+        await deleteRewardProgram(programId);
+        setRewardsPrograms(prev => prev.filter(p => p.id !== programId));
+        toast({ title: 'Program Deleted', description: 'Reward program has been successfully deleted.' });
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Deletion Failed', description: (error as Error).message });
+    }
+    setIsSaving(false);
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!window.confirm("Are you sure you want to delete this redemption item? This action cannot be undone.")) return;
+    setIsSaving(true); // Use generic saving loader
+    try {
+        await deleteRedemptionItem(itemId);
+        setRedemptionItems(prev => prev.filter(i => i.id !== itemId));
+        toast({ title: 'Item Deleted', description: 'Redemption item has been successfully deleted.' });
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Deletion Failed', description: (error as Error).message });
+    }
+    setIsSaving(false);
+  };
+
 
   return (
     <div className="flex flex-col gap-6 py-6">
-      <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
+      <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
         <ArrowLeft className="h-4 w-4" />
         Back to Dashboard
       </Link>
@@ -140,10 +178,8 @@ export default function RewardsPage() {
         <h1 className="text-2xl font-semibold text-primary flex items-center gap-2">
           <Award className="h-6 w-6" /> Rewards Management
         </h1>
-        {/* Removed main create button, moved to specific sections */}
       </div>
 
-      {/* Reward Programs Overview */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -155,7 +191,8 @@ export default function RewardsPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          {rewardsPrograms.length > 0 ? (
+          {isLoadingPrograms ? <div className="flex justify-center p-4"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div> : 
+          rewardsPrograms.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -186,7 +223,9 @@ export default function RewardsPage() {
                       <Button variant="ghost" size="icon" onClick={() => handleOpenProgramModal(program)} className="h-8 w-8">
                         <Edit3 className="h-4 w-4" />
                       </Button>
-                       {/* Add delete button here if needed */}
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteProgram(program.id)} className="h-8 w-8 text-destructive hover:text-destructive/80" disabled={isSaving}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -198,7 +237,6 @@ export default function RewardsPage() {
         </CardContent>
       </Card>
 
-      {/* Redemption Catalog */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -210,7 +248,8 @@ export default function RewardsPage() {
           </Button>
         </CardHeader>
         <CardContent>
-           {redemptionItems.length > 0 ? (
+           {isLoadingItems ? <div className="flex justify-center p-4"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div> :
+           redemptionItems.length > 0 ? (
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -227,8 +266,8 @@ export default function RewardsPage() {
                         <TableRow key={item.id}>
                             <TableCell className="font-medium">{item.name}</TableCell>
                             <TableCell>{item.type}</TableCell>
-                            <TableCell>{item.pointsCost || 'N/A'}</TableCell>
-                            <TableCell className="hidden sm:table-cell">{item.stock !== undefined ? item.stock : 'Unlimited'}</TableCell>
+                            <TableCell>{item.pointsCost !== undefined ? item.pointsCost : 'N/A'}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{item.stock !== undefined && item.stock !== null ? item.stock : 'Unlimited'}</TableCell>
                             <TableCell>
                                 <Badge variant={item.isActive ? 'default' : 'outline'}
                                  className={`${item.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'} border-transparent`}>
@@ -238,6 +277,9 @@ export default function RewardsPage() {
                             <TableCell className="text-right">
                                 <Button variant="ghost" size="icon" onClick={() => handleOpenItemModal(item)}  className="h-8 w-8">
                                     <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteItem(item.id)} className="h-8 w-8 text-destructive hover:text-destructive/80" disabled={isSaving}>
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                             </TableCell>
                         </TableRow>
@@ -250,11 +292,10 @@ export default function RewardsPage() {
         </CardContent>
       </Card>
 
-      {/* Recent Redemptions */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Redemptions</CardTitle>
-          <CardDescription>Track rewards claimed by users.</CardDescription>
+          <CardTitle>Recent Redemptions (Placeholder)</CardTitle>
+          <CardDescription>Track rewards claimed by users. (Functionality to be implemented)</CardDescription>
         </CardHeader>
         <CardContent>
           {recentRedemptions.length > 0 ? (
@@ -284,7 +325,6 @@ export default function RewardsPage() {
         </CardContent>
       </Card>
 
-      {/* Program Modal */}
       <Dialog open={isProgramModalOpen} onOpenChange={setIsProgramModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -329,7 +369,6 @@ export default function RewardsPage() {
               <Label htmlFor="programDescription" className="text-right">Description</Label>
               <Textarea id="programDescription" value={currentProgram?.description || ''} onChange={(e) => setCurrentProgram(p => ({ ...p, description: e.target.value }))} className="col-span-3" placeholder="Briefly describe the program" />
             </div>
-             {/* Conditional config fields */}
             {currentProgram?.type === 'Points' && (
                 <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="pointsPerSurvey" className="text-right">Points/Survey</Label>
@@ -354,7 +393,6 @@ export default function RewardsPage() {
                     </div>
                 </>
             )}
-
           </div>
           <DialogFooter>
             <DialogClose asChild>
@@ -368,7 +406,6 @@ export default function RewardsPage() {
         </DialogContent>
       </Dialog>
 
-       {/* Item Modal */}
       <Dialog open={isItemModalOpen} onOpenChange={setIsItemModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -398,11 +435,11 @@ export default function RewardsPage() {
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="itemPointsCost" className="text-right">Points Cost</Label>
-              <Input id="itemPointsCost" type="number" value={currentItem?.pointsCost || ''} onChange={(e) => setCurrentItem(i => ({ ...i, pointsCost: parseInt(e.target.value) || undefined }))} className="col-span-3" placeholder="Optional"/>
+              <Input id="itemPointsCost" type="number" value={currentItem?.pointsCost === undefined ? '' : String(currentItem.pointsCost)} onChange={(e) => setCurrentItem(i => ({ ...i, pointsCost: e.target.value === '' ? undefined : parseInt(e.target.value) }))} className="col-span-3" placeholder="Optional (e.g., 100)"/>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="itemStock" className="text-right">Stock</Label>
-              <Input id="itemStock" type="number" value={currentItem?.stock || ''} onChange={(e) => setCurrentItem(i => ({ ...i, stock: parseInt(e.target.value) || undefined }))} className="col-span-3" placeholder="Optional (leave blank for unlimited)"/>
+              <Input id="itemStock" type="number" value={currentItem?.stock === undefined || currentItem.stock === null ? '' : String(currentItem.stock)} onChange={(e) => setCurrentItem(i => ({ ...i, stock: e.target.value === '' ? null : parseInt(e.target.value) }))} className="col-span-3" placeholder="Optional (blank for unlimited)"/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="itemIsActive" className="text-right">Status</Label>
@@ -417,6 +454,14 @@ export default function RewardsPage() {
                         </SelectContent>
                     </Select>
                 </div>
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="itemDescription" className="text-right">Description</Label>
+              <Textarea id="itemDescription" value={currentItem?.description || ''} onChange={(e) => setCurrentItem(i => ({ ...i, description: e.target.value }))} className="col-span-3" placeholder="Optional item description"/>
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="itemImageUrl" className="text-right">Image URL</Label>
+              <Input id="itemImageUrl" value={currentItem?.imageUrl || ''} onChange={(e) => setCurrentItem(i => ({ ...i, imageUrl: e.target.value }))} className="col-span-3" placeholder="Optional image URL"/>
             </div>
           </div>
           <DialogFooter>

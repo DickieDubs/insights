@@ -4,44 +4,103 @@
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import Link from 'next/link'; // Import Link
-import { ArrowLeft } from 'lucide-react'; // Import ArrowLeft
+import Link from 'next/link';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { 
+    getResponseRateData, 
+    getRatingData, 
+    getCompletionTrendData,
+    getAllCampaigns, // For campaign filter
+    getAllSurveys,   // For survey filter
+} from '@/lib/firebase/firestore-service';
+import type { Campaign, Survey } from '@/types';
 
-
-// Mock Data for Charts - Replace with dynamic data fetching and processing
-const responseRateData = [
-  { name: 'Survey A', sent: 400, responses: 240 },
-  { name: 'Survey B', sent: 300, responses: 139 },
-  { name: 'Survey C', sent: 200, responses: 198 },
-  { name: 'Survey D', sent: 278, responses: 180 },
-  { name: 'Survey E', sent: 189, responses: 110 },
-];
-
-const ratingData = [
-  { name: '1 Star', value: 5 },
-  { name: '2 Stars', value: 15 },
-  { name: '3 Stars', value: 40 },
-  { name: '4 Stars', value: 25 },
-  { name: '5 Stars', value: 15 },
-];
-
-const completionTrendData = [
-  { name: 'Jan', completions: 30, dropOffs: 5 },
-  { name: 'Feb', completions: 45, dropOffs: 8 },
-  { name: 'Mar', completions: 60, dropOffs: 12 },
-  { name: 'Apr', completions: 55, dropOffs: 10 },
-  { name: 'May', completions: 70, dropOffs: 15 },
-  { name: 'Jun', completions: 85, dropOffs: 18 },
-];
 
 const COLORS = ['#DC2626', '#F97316', '#FACC15', '#84CC16', '#22C55E']; // From Red to Green
 
+type ResponseRate = { name: string; sent: number; responses: number };
+type Rating = { name: string; value: number };
+type CompletionTrend = { name: string; completions: number; dropOffs: number };
+
+
 export default function InsightsPage() {
-  // TODO: Add state and effects for fetching/filtering data based on selected campaign/survey
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCharts, setIsLoadingCharts] = useState(true);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(null);
+
+  // Chart data state
+  const [responseRateData, setResponseRateData] = useState<ResponseRate[]>([]);
+  const [ratingData, setRatingData] = useState<Rating[]>([]);
+  const [completionTrendData, setCompletionTrendData] = useState<CompletionTrend[]>([]);
+
+
+  useEffect(() => {
+    async function loadFilters() {
+        setIsLoading(true);
+        try {
+            const [fetchedCampaigns, fetchedSurveys] = await Promise.all([
+                getAllCampaigns(),
+                getAllSurveys()
+            ]);
+            setCampaigns([{ id: 'all', title: 'All Campaigns' } as any, ...fetchedCampaigns]);
+            setSurveys([{ id: 'all', name: 'All Surveys'} as any, ...fetchedSurveys]);
+        } catch (error) {
+            console.error("Error loading filter data:", error);
+            // Handle error (e.g., show toast)
+        }
+        setIsLoading(false);
+    }
+    loadFilters();
+  }, []);
+
+  useEffect(() => {
+    async function loadChartData() {
+        setIsLoadingCharts(true);
+        try {
+            // TODO: Filter chart data based on selectedCampaignId and selectedSurveyId
+            const [respRate, rateData, compTrend] = await Promise.all([
+                getResponseRateData(),
+                getRatingData(),
+                getCompletionTrendData()
+            ]);
+            setResponseRateData(respRate);
+            setRatingData(rateData);
+            setCompletionTrendData(compTrend);
+        } catch (error) {
+            console.error("Error loading chart data:", error);
+        }
+        setIsLoadingCharts(false);
+    }
+    loadChartData();
+  }, [selectedCampaignId, selectedSurveyId]); // Reload chart data when filters change
+
+
+  const filteredSurveysForSelect = selectedCampaignId && selectedCampaignId !== 'all'
+    ? surveys.filter(s => s.campaignId === selectedCampaignId || s.id === 'all')
+    : surveys;
+
+  if (isLoading) { // Initial loading for filters
+    return (
+      <div className="flex flex-col gap-6 py-6">
+        <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Link>
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="ml-4 text-lg text-muted-foreground">Loading Filter Data...</p>
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex flex-col gap-6 py-6">
-        {/* Back to Dashboard Link */}
          <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
@@ -49,33 +108,46 @@ export default function InsightsPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-primary">Insights</h1>
-        {/* Filter Dropdowns */}
         <div className="flex gap-2">
-           <Select>
-            <SelectTrigger className="w-[180px]">
+           <Select onValueChange={(value) => setSelectedCampaignId(value === 'all' ? null : value)} value={selectedCampaignId || 'all'}>
+            <SelectTrigger className="w-[180px]" disabled={isLoading}>
                 <SelectValue placeholder="Select Campaign" />
             </SelectTrigger>
             <SelectContent>
-                <SelectItem value="camp_1">Spring Snack Launch</SelectItem>
-                <SelectItem value="camp_3">Beverage Taste Test Q2</SelectItem>
-                <SelectItem value="all">All Campaigns</SelectItem>
+                {campaigns.map(campaign => (
+                    <SelectItem key={campaign.id} value={campaign.id}>{campaign.title}</SelectItem>
+                ))}
             </SelectContent>
            </Select>
-            <Select>
-            <SelectTrigger className="w-[180px]">
+            <Select onValueChange={(value) => setSelectedSurveyId(value === 'all' ? null : value)} value={selectedSurveyId || 'all'}>
+            <SelectTrigger className="w-[180px]" disabled={isLoading || (selectedCampaignId && selectedCampaignId !== 'all' && filteredSurveysForSelect.length <= 1) }>
                 <SelectValue placeholder="Select Survey" />
             </SelectTrigger>
             <SelectContent>
-                <SelectItem value="sur_1">Initial Concept Test</SelectItem>
-                <SelectItem value="sur_4">Flavor Preference Ranking</SelectItem>
-                 <SelectItem value="all">All Surveys</SelectItem>
+                {filteredSurveysForSelect.map(survey => (
+                     <SelectItem key={survey.id} value={survey.id}>{survey.name}</SelectItem>
+                ))}
             </SelectContent>
            </Select>
         </div>
       </div>
 
+      {isLoadingCharts ? (
+         <div className="grid gap-6 md:grid-cols-2">
+            {[...Array(3)].map((_, i) => (
+                <Card key={i} className={i === 2 ? "md:col-span-2" : ""}>
+                    <CardHeader>
+                        <div className="h-6 bg-muted rounded w-1/3 animate-pulse"></div>
+                        <div className="h-4 bg-muted rounded w-2/3 animate-pulse mt-1"></div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-[300px] bg-muted rounded animate-pulse"></div>
+                    </CardContent>
+                </Card>
+            ))}
+         </div>
+      ) : (
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Response Rates Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Response Rates</CardTitle>
@@ -100,7 +172,6 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
 
-        {/* Product Ratings Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Product Ratings Distribution</CardTitle>
@@ -114,7 +185,6 @@ export default function InsightsPage() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        // label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={110}
                         fill="#8884d8"
                         dataKey="value"
@@ -135,7 +205,6 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
 
-        {/* Completion Trends Chart */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Completion Trends</CardTitle>
@@ -160,17 +229,18 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* Placeholder for more charts/analytics */}
        <Card>
         <CardHeader>
           <CardTitle>More Analytics</CardTitle>
           <CardDescription>Additional insights will be displayed here.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Demographic breakdowns, sentiment analysis, etc.</p>
+          <p className="text-muted-foreground">Demographic breakdowns, sentiment analysis, etc. (Placeholder)</p>
         </CardContent>
       </Card>
     </div>
   );
 }
+

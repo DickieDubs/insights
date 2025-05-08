@@ -1,5 +1,4 @@
 
-export const runtime = 'edge';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -14,20 +13,51 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { getAllCampaigns, Campaign } from '@/lib/mock-data/campaigns'; // Import shared data
+import { getAllCampaigns, getSurveyCountForCampaign } from '@/lib/firebase/firestore-service';
+import type { Campaign } from '@/types';
 import { use } from 'react';
+import { Timestamp } from 'firebase/firestore';
+
+
+// Helper to format Firestore Timestamp or date string/Date object
+const formatDate = (dateInput: Timestamp | Date | string | undefined): string => {
+  if (!dateInput) return 'N/A';
+  let date: Date;
+  if (dateInput instanceof Timestamp) {
+    date = dateInput.toDate();
+  } else if (typeof dateInput === 'string') {
+    date = new Date(dateInput);
+  } else {
+    date = dateInput; // Assumed to be Date object
+  }
+  
+  if (isNaN(date.getTime())) return 'Invalid Date';
+  
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+
+type CampaignWithSurveyCount = Campaign & { surveyCount: number };
 
 // Fetch data using React.use() for Server Components
-const getCampaigns = async (): Promise<Campaign[]> => {
-    return getAllCampaigns();
+const getCampaignsData = async (): Promise<CampaignWithSurveyCount[]> => {
+    const campaigns = await getAllCampaigns();
+    // Fetch survey count for each campaign
+    const campaignsWithCounts = await Promise.all(
+        campaigns.map(async (campaign) => {
+            const surveyCount = await getSurveyCountForCampaign(campaign.id);
+            return { ...campaign, surveyCount };
+        })
+    );
+    return campaignsWithCounts;
 };
 
 export default function CampaignsPage() {
-  const campaigns = use(getCampaigns());
+  const campaigns = use(getCampaignsData());
 
   return (
     <div className="flex flex-col gap-6 py-6">
-         <Link href="/dashboard" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
+         <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-4 w-fit">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
         </Link>
@@ -52,7 +82,7 @@ export default function CampaignsPage() {
               <TableRow>
                 <TableHead>Campaign Title</TableHead>
                 <TableHead className="hidden md:table-cell">Client</TableHead>
-                <TableHead className="hidden lg:table-cell">Product Type</TableHead>
+                <TableHead className="hidden lg:table-cell">Start Date</TableHead>
                 <TableHead className="hidden sm:table-cell">Surveys</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>
@@ -68,20 +98,23 @@ export default function CampaignsPage() {
                       {campaign.title}
                      </Link>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">{campaign.client}</TableCell>
-                  <TableCell className="hidden lg:table-cell text-muted-foreground">{campaign.productType}</TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">{campaign.surveys}</TableCell>
+                  <TableCell className="hidden md:table-cell text-muted-foreground">
+                    {campaign.clientName || <Link href={`/clients/${campaign.clientId}`} className="hover:underline">{campaign.clientId}</Link>}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{formatDate(campaign.startDate)}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-muted-foreground">{campaign.surveyCount}</TableCell>
                   <TableCell>
                     <Badge variant={
                         campaign.status === 'Active' ? 'default' :
                         campaign.status === 'Completed' ? 'outline' :
-                        campaign.status === 'Planning' ? 'secondary' : 'destructive'
+                        campaign.status === 'Planning' || campaign.status === 'Draft' ? 'secondary' : 
+                        'destructive' // Paused or Archived
                      } className={`
                         ${campaign.status === 'Active' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
                         ${campaign.status === 'Completed' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}
-                        ${campaign.status === 'Planning' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}
-                        ${campaign.status === 'Paused' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' : ''}
-                        border-transparent
+                        ${campaign.status === 'Planning' || campaign.status === 'Draft' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}
+                        ${campaign.status === 'Paused' || campaign.status === 'Archived' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' : ''}
+                        border-transparent text-xs
                      `}>
                         {campaign.status}
                     </Badge>
@@ -102,8 +135,8 @@ export default function CampaignsPage() {
                         <DropdownMenuItem asChild>
                            <Link href={`/campaigns/${campaign.id}/edit`}>Edit</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">Archive</DropdownMenuItem>
+                        {/* <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">Archive</DropdownMenuItem> */}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

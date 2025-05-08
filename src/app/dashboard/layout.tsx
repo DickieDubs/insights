@@ -1,9 +1,8 @@
 
-
-'use client'; // Mark as client component because it uses hooks (useAuth, useRouter)
+'use client';
 
 import type { ReactNode } from 'react';
-import React from 'react'; // Import React
+import React, { useState, useEffect } from 'react';
 import {
   Sidebar,
   SidebarContent,
@@ -12,19 +11,13 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   LayoutDashboard,
   Users,
@@ -33,110 +26,68 @@ import {
   BarChart2,
   Settings,
   Bell,
-  LogOut,
-  Loader2,
-  Sparkles, // New icon for Brand
-  FilePieChart, // New icon for Reports
-  Award, // New icon for Rewards
+  Sparkles,
+  FilePieChart,
+  Award,
+  Palette,
+  List,
+  PlusCircle,
+  UsersRound, 
+  TrendingUp, // Added for Trends
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/context/auth-context'; // Import useAuth hook
-import { getFirebaseAuth } from '@/lib/firebase/client'; // Use the getter function
-import { signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ThemeSwitcher } from '@/components/theme-switcher';
+import { usePathname } from 'next/navigation';
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-   const { user, loading } = useAuth(); // Get user and loading state
-   const router = useRouter();
-   const { toast } = useToast(); // Get toast function
-    // Get auth instance safely
-   const [authInstance, setAuthInstance] = React.useState(() => {
-      try {
-          return getFirebaseAuth();
-      } catch (error) {
-          console.error("Failed to get Firebase Auth instance in Dashboard Layout:", error);
-          // No toast here, let AuthProvider handle critical init errors
-          return null;
-      }
-  });
+  const pathname = usePathname();
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
-   const handleLogout = async () => {
-    if (!authInstance) {
-       toast({ variant: "destructive", title: "Error", description: "Authentication service not available." });
-       return;
+  const isLinkActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+
+  useEffect(() => {
+    if (pathname.startsWith('/clients')) {
+      setActiveDropdown('clients-menu');
+    } else if (pathname.startsWith('/campaigns')) {
+      setActiveDropdown('campaigns-menu');
+    } else if (pathname.startsWith('/surveys')) {
+      setActiveDropdown('surveys-menu');
+    } else if (pathname.startsWith('/consumers')) {
+      setActiveDropdown('consumers-menu');
+    } else if (pathname.startsWith('/trends')) { // Added for Trends
+      setActiveDropdown(null); // Trends is not a dropdown
+    } else {
+      setActiveDropdown(null);
     }
-    try {
-      await signOut(authInstance);
-      toast({
-        title: "Logged Out",
-        description: "You have been successfully logged out.",
-      });
-      // Redirecting to login will be handled by ProtectedRoute
-      // router.push('/login');
-    } catch (error) {
-      console.error("Error signing out: ", error);
-       toast({
-        variant: "destructive",
-        title: "Logout Failed",
-        description: "An error occurred while logging out. Please try again.",
-      });
-    }
-  };
-
-   // Get user initials for Avatar fallback
-  const getInitials = (name: string | null | undefined): string => {
-    if (!name) return '??';
-    const nameParts = name.split(' ');
-    if (nameParts.length > 1 && nameParts[0] && nameParts[1]) {
-      return `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase();
-    }
-     if (nameParts[0]) {
-      return nameParts[0].substring(0, 2).toUpperCase();
-    }
-    return '??';
-  };
-
-  // Display loading state while auth is initializing (handled by AuthProvider/ProtectedRoute)
-  // if (loading) { ... } // Removed redundant loading check
-
-  // If auth instance failed to initialize (should be caught by AuthProvider ideally)
-  // if (!authInstance) { ... } // Removed redundant auth instance check
-
-  // If user is null after loading (shouldn't happen due to ProtectedRoute, but safe check)
-  // if (!user && !loading) { ... } // Removed redundant user check
-
-  // Render the layout only when loading is false and user exists (ensured by ProtectedRoute)
-  if (loading || !user) {
-    // ProtectedRoute shows its own loading/redirect indicator
-    return null;
-  }
+  }, [pathname]);
 
 
   return (
-     // Wrap the entire layout content with SidebarProvider
-    <SidebarProvider>
+    <SidebarProvider defaultActiveDropdown={null}>
         <div className="flex min-h-screen w-full bg-secondary">
-          <Sidebar variant="sidebar" collapsible="icon" side="left">
-              <SidebarHeader className="flex items-center justify-between">
-                <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+          <Sidebar variant="sidebar" collapsible="icon" side="left" className="data-[variant=sidebar]:max-md:hidden">
+              <SidebarHeader className="flex items-center justify-center p-2 group-data-[collapsible=icon]:justify-center">
+                <Link href="/" className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
                     <Image src="/insightpulse-logo.svg" alt="InsightPulse Logo" width={32} height={32} data-ai-hint="pulse logo" />
                     <span className="text-lg font-semibold text-primary">InsightPulse</span>
                 </Link>
-                {/* Sidebar Trigger is only visible in non-mobile views when sidebar is collapsible */}
-                <div className="hidden md:block">
+                <Link href="/" className="hidden items-center gap-2 group-data-[collapsible=icon]:flex">
+                    <Image src="/insightpulse-logo.svg" alt="InsightPulse Logo" width={32} height={32} data-ai-hint="pulse logo"/>
+                </Link>
+                <div className="hidden group-data-[collapsible=icon]:hidden md:group-data-[collapsible=offcanvas]:block ml-auto">
                     <SidebarTrigger />
                 </div>
               </SidebarHeader>
               <SidebarContent>
-                <SidebarMenu>
+                <SidebarMenu value={activeDropdown || undefined} onValueChange={setActiveDropdown}>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Dashboard" >
+                    <SidebarMenuButton asChild isActive={isLinkActive('/dashboard')} tooltip="Dashboard" >
                         <Link href="/dashboard">
                           <LayoutDashboard />
                           <span>Dashboard</span>
@@ -144,39 +95,101 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                    <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Brand">
+                    <SidebarMenuButton asChild isActive={isLinkActive('/brand')} tooltip="Brand">
                       <Link href="/brand">
                         <Sparkles />
                         <span>Brand</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+
+                  <SidebarMenuItem value="clients-menu" isDropdown>
+                    <SidebarMenuButton isActive={isLinkActive('/clients')} tooltip="Clients">
+                      <Users />
+                      <span>Clients</span>
+                    </SidebarMenuButton>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/clients'}>
+                          <Link href="/clients"><List className="mr-2"/>All Clients</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/clients/new'}>
+                          <Link href="/clients/new"><PlusCircle className="mr-2"/>Add Client</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem value="campaigns-menu" isDropdown>
+                    <SidebarMenuButton isActive={isLinkActive('/campaigns')} tooltip="Campaigns">
+                      <Briefcase />
+                      <span>Campaigns</span>
+                    </SidebarMenuButton>
+                     <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/campaigns'}>
+                          <Link href="/campaigns"><List className="mr-2"/>All Campaigns</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/campaigns/new'}>
+                          <Link href="/campaigns/new"><PlusCircle className="mr-2"/>Add Campaign</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem value="surveys-menu" isDropdown>
+                    <SidebarMenuButton isActive={isLinkActive('/surveys')} tooltip="Surveys">
+                      <FileText />
+                      <span>Surveys</span>
+                    </SidebarMenuButton>
+                     <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/surveys'}>
+                           <Link href="/surveys"><List className="mr-2"/>All Surveys</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/surveys/new'}>
+                           <Link href="/surveys/new"><PlusCircle className="mr-2"/>Add Survey</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem value="consumers-menu" isDropdown>
+                    <SidebarMenuButton isActive={isLinkActive('/consumers')} tooltip="Consumers">
+                      <UsersRound /> 
+                      <span>Consumers</span>
+                    </SidebarMenuButton>
+                     <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/consumers'}>
+                           <Link href="/consumers"><List className="mr-2"/>All Consumers</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === '/consumers/new'}>
+                           <Link href="/consumers/new"><PlusCircle className="mr-2"/>Add Consumer</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </SidebarMenuItem>
+                  
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Clients">
-                      <Link href="/clients">
-                        <Users />
-                        <span>Clients</span>
-                      </Link>
+                    <SidebarMenuButton asChild isActive={isLinkActive('/trends')} tooltip="Trends">
+                        <Link href="/trends">
+                            <TrendingUp />
+                            <span>Trends</span>
+                        </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Campaigns">
-                      <Link href="/campaigns">
-                        <Briefcase />
-                        <span>Campaigns</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Surveys">
-                      <Link href="/surveys">
-                        <FileText />
-                        <span>Surveys</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Insights">
+                    <SidebarMenuButton asChild isActive={isLinkActive('/insights')} tooltip="Insights">
                         <Link href="/insights">
                             <BarChart2 />
                             <span>Insights</span>
@@ -184,7 +197,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                    <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Reports">
+                    <SidebarMenuButton asChild isActive={isLinkActive('/reports')} tooltip="Reports">
                         <Link href="/reports">
                             <FilePieChart />
                             <span>Reports</span>
@@ -192,67 +205,53 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                    <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Rewards">
+                    <SidebarMenuButton asChild isActive={isLinkActive('/rewards')} tooltip="Rewards">
                         <Link href="/rewards">
                             <Award />
                             <span>Rewards</span>
                         </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={false} tooltip="Settings">
-                      <Link href="/settings">
-                        <Settings />
-                        <span>Settings</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarContent>
-              {/* Footer could go here if needed */}
+                <SidebarHeader className="mt-auto">
+                     <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild isActive={isLinkActive('/settings')} tooltip="Settings">
+                            <Link href="/settings">
+                                <Settings />
+                                <span>Settings</span>
+                            </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarHeader>
           </Sidebar>
 
           <SidebarInset className="flex flex-col bg-background">
             <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-4">
-                {/* Mobile Sidebar Trigger */}
                 <div className="md:hidden">
                     <SidebarTrigger />
                 </div>
-                {/* Placeholder for Search or Title if needed */}
-                <div className="flex-1"></div>
+                 <div className="flex-1">
+                    {/* Placeholder for global search or breadcrumbs if needed */}
+                 </div>
                 <div className="flex items-center gap-4">
-                    {/* Optional Notifications */}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="ghost" size="icon" className="rounded-full">
+                                <Palette className="h-5 w-5" />
+                                <span className="sr-only">Change theme</span>
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <ThemeSwitcher />
+                        </PopoverContent>
+                    </Popover>
                     <Button variant="ghost" size="icon" className="rounded-full">
                         <Bell className="h-5 w-5" />
                         <span className="sr-only">Toggle notifications</span>
                     </Button>
-
-                    {/* User Profile Dropdown */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="rounded-full">
-                            <Avatar className="h-8 w-8">
-                              {/* Use user's photoURL if available, otherwise fallback */}
-                              <AvatarImage src={user?.photoURL || `https://picsum.photos/seed/${user.uid}/32/32`} data-ai-hint="person avatar" alt={user?.displayName || "User"} />
-                              <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
-                            </Avatar>
-                            <span className="sr-only">Toggle user menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>{user?.displayName || 'User Profile'}</DropdownMenuLabel>
-                           <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{user?.email}</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem asChild>
-                              <Link href="/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                           <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-                                <LogOut className="mr-2 h-4 w-4" />
-                                Logout
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
                 </div>
             </header>
             <main className="flex-1 overflow-auto p-4 sm:px-6 sm:py-0">
@@ -263,3 +262,4 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     </SidebarProvider>
   );
 }
+

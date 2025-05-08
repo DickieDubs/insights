@@ -1,33 +1,20 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FilePieChart, Download, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { 
+    getAllCampaigns, // For campaign filter
+    getAllSurveys,   // For survey filter
+    getMockReportTypes, // Keep mock for report types for now
+} from '@/lib/firebase/firestore-service';
+import type { Campaign, Survey } from '@/types';
 
-// Mock data for filters - replace with dynamic data
-const mockCampaigns = [
-  { id: 'camp_1', name: 'Spring Snack Launch' },
-  { id: 'camp_3', name: 'Beverage Taste Test Q2' },
-  { id: 'all', name: 'All Campaigns' },
-];
-
-const mockSurveys = [
-  { id: 'sur_1', name: 'Initial Concept Test', campaignId: 'camp_1' },
-  { id: 'sur_4', name: 'Flavor Preference Ranking', campaignId: 'camp_3' },
-  { id: 'all', name: 'All Surveys' },
-];
-
-const mockReportTypes = [
-  { id: 'summary', name: 'Summary Report' },
-  { id: 'cross_tab', name: 'Cross-Tabulation' },
-  { id: 'demographics', name: 'Demographic Breakdown' },
-  { id: 'sentiment', name: 'Sentiment Analysis (AI)' },
-];
 
 type GeneratedReport = {
   id: string;
@@ -42,12 +29,39 @@ type GeneratedReport = {
 };
 
 export default function ReportsPage() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [reportTypes, setReportTypes] = useState<{id: string, name: string}[]>([]);
+
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   const [selectedSurvey, setSelectedSurvey] = useState<string | null>(null);
   const [selectedReportType, setSelectedReportType] = useState<string | null>(null);
+  
+  const [isLoadingFilters, setIsLoadingFilters] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedReports, setGeneratedReports] = useState<GeneratedReport[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    async function loadFilters() {
+        setIsLoadingFilters(true);
+        try {
+            const [fetchedCampaigns, fetchedSurveys, fetchedReportTypes] = await Promise.all([
+                getAllCampaigns(),
+                getAllSurveys(), // Fetch all initially, can be filtered client-side or re-fetched
+                getMockReportTypes()
+            ]);
+            setCampaigns([{ id: 'all', title: 'All Campaigns' } as any, ...fetchedCampaigns]);
+            setSurveys([{ id: 'all', name: 'All Surveys' } as any, ...fetchedSurveys]);
+            setReportTypes(fetchedReportTypes);
+        } catch (error) {
+            console.error("Error loading filter data:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load filter options.' });
+        }
+        setIsLoadingFilters(false);
+    }
+    loadFilters();
+  }, [toast]);
 
   const handleGenerateReport = async () => {
     if (!selectedCampaign || !selectedSurvey || !selectedReportType) {
@@ -65,12 +79,11 @@ export default function ReportsPage() {
       description: 'Please wait while your report is being prepared.',
     });
 
-    // Simulate API call for report generation
     await new Promise(resolve => setTimeout(resolve, 2500));
 
-    const campaignName = mockCampaigns.find(c => c.id === selectedCampaign)?.name || 'N/A';
-    const surveyName = mockSurveys.find(s => s.id === selectedSurvey)?.name || 'N/A';
-    const reportTypeName = mockReportTypes.find(rt => rt.id === selectedReportType)?.name || 'N/A';
+    const campaignName = campaigns.find(c => c.id === selectedCampaign)?.title || 'N/A';
+    const surveyName = surveys.find(s => s.id === selectedSurvey)?.name || 'N/A';
+    const reportTypeName = reportTypes.find(rt => rt.id === selectedReportType)?.name || 'N/A';
 
     const newReport: GeneratedReport = {
       id: `rep_${Date.now()}`,
@@ -81,7 +94,7 @@ export default function ReportsPage() {
         campaign: selectedCampaign,
         survey: selectedSurvey,
       },
-      fileUrl: '#mock-download-link', // Replace with actual file URL
+      fileUrl: '#mock-download-link',
     };
 
     setGeneratedReports(prev => [newReport, ...prev]);
@@ -99,18 +112,17 @@ export default function ReportsPage() {
         return;
     }
     toast({ title: 'Downloading Report', description: `Starting download for "${report.name}"...` });
-    // Simulate download
     const link = document.createElement('a');
     link.href = report.fileUrl;
-    link.setAttribute('download', `${report.name.replace(/ /g, '_')}.pdf`); // Example filename
+    link.setAttribute('download', `${report.name.replace(/ /g, '_')}.pdf`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const filteredSurveys = selectedCampaign && selectedCampaign !== 'all'
-    ? mockSurveys.filter(s => s.campaignId === selectedCampaign || s.id === 'all')
-    : mockSurveys;
+  const filteredSurveysForSelect = selectedCampaign && selectedCampaign !== 'all'
+    ? surveys.filter(s => s.campaignId === selectedCampaign || s.id === 'all')
+    : surveys;
 
   return (
     <div className="flex flex-col gap-6 py-6">
@@ -123,7 +135,7 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-semibold text-primary flex items-center gap-2">
           <FilePieChart className="h-6 w-6" /> Reports
         </h1>
-        <Button onClick={handleGenerateReport} disabled={isGenerating}>
+        <Button onClick={handleGenerateReport} disabled={isGenerating || isLoadingFilters}>
           {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
           Generate Report
         </Button>
@@ -137,38 +149,37 @@ export default function ReportsPage() {
         <CardContent className="flex flex-wrap gap-4 items-end">
           <div className="flex-grow min-w-[180px]">
             <label htmlFor="campaign-select" className="text-sm font-medium text-muted-foreground block mb-1">Campaign</label>
-            <Select onValueChange={setSelectedCampaign} value={selectedCampaign || undefined}>
+            <Select onValueChange={setSelectedCampaign} value={selectedCampaign || undefined} disabled={isLoadingFilters || campaigns.length === 0}>
               <SelectTrigger id="campaign-select" className="w-full">
-                <SelectValue placeholder="Select Campaign" />
+                <SelectValue placeholder={isLoadingFilters ? "Loading..." : "Select Campaign"} />
               </SelectTrigger>
               <SelectContent>
-                {mockCampaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="flex-grow min-w-[180px]">
             <label htmlFor="survey-select" className="text-sm font-medium text-muted-foreground block mb-1">Survey</label>
-            <Select onValueChange={setSelectedSurvey} value={selectedSurvey || undefined} disabled={!selectedCampaign}>
+            <Select onValueChange={setSelectedSurvey} value={selectedSurvey || undefined} disabled={isLoadingFilters || surveys.length === 0 || !selectedCampaign}>
               <SelectTrigger id="survey-select" className="w-full">
-                <SelectValue placeholder="Select Survey" />
+                <SelectValue placeholder={isLoadingFilters ? "Loading..." : "Select Survey"} />
               </SelectTrigger>
               <SelectContent>
-                {filteredSurveys.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                {filteredSurveysForSelect.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="flex-grow min-w-[180px]">
             <label htmlFor="report-type-select" className="text-sm font-medium text-muted-foreground block mb-1">Report Type</label>
-            <Select onValueChange={setSelectedReportType} value={selectedReportType || undefined}>
+            <Select onValueChange={setSelectedReportType} value={selectedReportType || undefined} disabled={isLoadingFilters || reportTypes.length === 0}>
               <SelectTrigger id="report-type-select" className="w-full">
-                <SelectValue placeholder="Select Report Type" />
+                <SelectValue placeholder={isLoadingFilters ? "Loading..." : "Select Report Type"} />
               </SelectTrigger>
               <SelectContent>
-                {mockReportTypes.map(rt => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)}
+                {reportTypes.map(rt => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          {/* Date Range Picker could go here */}
         </CardContent>
       </Card>
 
@@ -204,3 +215,4 @@ export default function ReportsPage() {
     </div>
   );
 }
+
