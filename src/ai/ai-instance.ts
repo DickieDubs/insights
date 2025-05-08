@@ -1,12 +1,13 @@
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import { generateText } from '@/lib/ai';
 
-export const ai = genkit({
-  promptDir: './prompts',
-  plugins: [
-    googleAI({
-      apiKey: process.env.GOOGLE_GENAI_API_KEY,
-    }),
-  ],
-  model: 'googleai/gemini-2.0-flash',
-});
+
+export const getAIResponse = async (prompt: string): Promise<string> => {
+  try {
+    const response = await generateText(prompt);
+    return response;
+  } catch (error) {
+    console.error('Error getting AI response:', error);
+    throw error; // Re-throw the error to handle it higher up if necessary
+  }
+};
+

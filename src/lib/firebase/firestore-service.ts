@@ -279,8 +279,7 @@ export async function updateCampaign(campaignId: string, campaignData: Partial<C
         if(clientDoc.exists()) dataToUpdate.clientName = clientDoc.data()?.name;
     }
 
-    const docRef = doc(db, 'campaigns', campaignId);
-    await updateDoc(docRef, dataToUpdate as any); // Use 'as any' to bypass strict type checking if startDate/endDate are optional in Campaign
+    const docRef = doc(db, 'campaigns', campaignId);\n    await updateDoc(docRef, dataToUpdate as any);
   } catch (error) {
     console.error("Error updating campaign: ", error);
     throw new Error("Failed to update campaign.");
@@ -871,83 +870,32 @@ export async function getRecentCampaigns(count: number = 4): Promise<Campaign[]>
     }
 }
 
+// --- Trend Data from Firestore ---
+export async function getTrendData(): Promise<TrendData | null> {
+  const db = getFirebaseFirestore();
+  try {
+    const q = query(collection(db, 'trends'));
+    const querySnapshot = await getDocs(q);
 
-// --- Mock Data for Charts -> To be replaced with dynamic data from Firestore later ---
-// These are now async to align with Server Action expectations
-export async function getResponseRateData(): Promise<Array<{name: string, sent: number, responses: number}>> {
- return [
-  { name: 'Survey Alpha', sent: 450, responses: 280 },
-  { name: 'Survey Beta', sent: 320, responses: 150 },
-  { name: 'Survey Gamma', sent: 210, responses: 180 },
-  { name: 'Survey Delta', sent: 290, responses: 190 },
-  { name: 'Survey Epsilon', sent: 190, responses: 120 },
-];
-}
-export async function getRatingData(): Promise<Array<{name: string, value: number}>> {
- return [
-  { name: '1 Star', value: 8 },
-  { name: '2 Stars', value: 12 },
-  { name: '3 Stars', value: 35 },
-  { name: '4 Stars', value: 30 },
-  { name: '5 Stars', value: 15 },
-];
-}
-
-export async function getCompletionTrendData(): Promise<Array<{name: string, completions: number, dropOffs: number}>> {
- return [
-  { name: 'Jan', completions: 35, dropOffs: 6 },
-  { name: 'Feb', completions: 50, dropOffs: 9 },
-  { name: 'Mar', completions: 65, dropOffs: 11 },
-  { name: 'Apr', completions: 50, dropOffs: 14 },
-  { name: 'May', completions: 75, dropOffs: 16 },
-  { name: 'Jun', completions: 90, dropOffs: 20 },
-];
-}
-
-
-// These are now async to align with Server Action expectations
-export async function getMockReportTypes(): Promise<Array<{id: string, name: string}>> {
- return [
-  { id: 'summary', name: 'Summary Report' },
-  { id: 'cross_tab', name: 'Cross-Tabulation' },
-  { id: 'demographics', name: 'Demographic Breakdown' },
-  { id: 'sentiment', name: 'Sentiment Analysis (AI)' },
-];
-}
-
-export async function getRecentRedemptions(): Promise<Array<{id: string, userId: string, userName: string, reward: string, pointsCost: number, date: string}>> {
-    return [
-        { id: 'red_alpha', userId: 'user_123', userName: 'Alice Wonderland', reward: '$10 Amazon Card', pointsCost: 100, date: '2024-05-01' },
-        { id: 'red_beta', userId: 'user_456', userName: 'Bob The Builder', reward: '20% Off Coupon - SnackCo', pointsCost: 50, date: '2024-04-28' },
-    ];
-}
-
-// --- Mock Data for Trends Page ---
-export async function getMockTrendData(): Promise<TrendData> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  return {
-    productMentions: [
-      { date: '2024-01', value: 120 },
-      { date: '2024-02', value: 150 },
-      { date: '2024-03', value: 130 },
-      { date: '2024-04', value: 180 },
-      { date: '2024-05', value: 210 },
-    ],
-    flavorPreferences: [
-      { name: 'Spicy Mango', value: 450 },
-      { name: 'Sweet Chili', value: 300 },
-      { name: 'Garlic Parmesan', value: 250 },
-      { name: 'Classic BBQ', value: 180 },
-      { name: 'Honey Mustard', value: 120 },
-    ],
-    sentimentOverTime: [
-      { date: '2024-01', value: 65 }, // Average sentiment score (e.g., 0-100)
-      { date: '2024-02', value: 70 },
-      { date: '2024-03', value: 68 },
-      { date: '2024-04', value: 75 },
-      { date: '2024-05', value: 72 },
-    ],
-  };
+    if (!querySnapshot.empty) {
+        const docSnap = querySnapshot.docs[0];
+        const data = docSnap.data();
+        return {
+            productMentions: data.productMentions || [],
+            flavorPreferences: data.flavorPreferences || [],
+            sentimentOverTime: data.sentimentOverTime || [],
+        } as TrendData;
+    } else {
+      // Handle the case where there are no trend documents
+      console.info("No trend data found in Firestore.");
+      return {
+        productMentions: [],
+        flavorPreferences: [],
+        sentimentOverTime: [],
+      }
+    }
+  } catch (error) {
+    console.error("Error getting trend data from Firestore: ", error);
+    return null;
+  }
 }
