@@ -1,6 +1,4 @@
 
-'use client'; // Mark as client component for form handling
-
 import React, { useState, useEffect, use } from 'react'; // Import 'use'
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useFieldArray } from 'react-hook-form'; // Import useFieldArray
@@ -30,7 +28,7 @@ import { Separator } from '@/components/ui/separator'; // Import Separator
 
 
 // --- Mock Data ---
-const allSurveysData = [
+const allSurveysData = [ 
     { id: 'sur_1', name: 'Initial Concept Test', campaignId: 'camp_1', status: 'Active', description: 'Testing initial concepts for the new snack line.', questionCount: 3, type: 'Concept Test', rewardProgramId: 'rew_1', questions: [{ id: 'q1', text: 'How appealing?', type: 'rating' }, { id: 'q2', text: 'Which flavor?', type: 'multiple-choice', options: ['A', 'B'] }, { id: 'q3', text: 'Suggestions?', type: 'text' }] },
     { id: 'sur_2', name: 'Packaging Preference', campaignId: 'camp_1', status: 'Completed', description: 'Gathering feedback on potential packaging designs.', questionCount: 1, type: 'Preference Test', rewardProgramId: null, questions: [{ id: 'q4', text: 'Design preference?', type: 'multiple-choice', options: ['X', 'Y'] }] },
     // ... other surveys with or without questions
@@ -38,15 +36,14 @@ const allSurveysData = [
 
 export async function generateStaticParams() {
   return allSurveysData.map((survey) => ({
-    surveyId: survey.id,
-  }));
-}
-
+      surveyId: survey.id,
+    }));
+  }
 const getSurveyData = async (surveyId: string) => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  const survey = allSurveysData.find(s => s.id === surveyId);
+   // Simulate API call
+   await new Promise(resolve => setTimeout(resolve, 100));
+   
+   const survey = allSurveysData.find(s => s.id === surveyId);
   // Make sure questions array exists, even if empty
   if (survey && !survey.questions) {
     survey.questions = [];
