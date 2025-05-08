@@ -1,6 +1,4 @@
-
-'use client';
-
+import { use } from 'react';
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +9,6 @@ import { ArrowLeft, Settings, Save, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { use } from 'react'; // Import 'use'
 
 // Mock data - make surveys array accessible at module level
 const allSurveysData = [
