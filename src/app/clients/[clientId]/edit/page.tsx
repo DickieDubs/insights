@@ -47,7 +47,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [clientData, setClientData] = useState<Client | null>(null); // To store full client data if needed
+  const [clientData, setClientData] = useState<Client | null>(null); 
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const { clientId } = use(params);
 
@@ -70,8 +70,8 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
       try {
         const data = await getClientById(clientId);
         if (data) {
-           setClientData(data); // Store the full client object
-           form.reset({ // Populate form with fetched data
+           setClientData(data); 
+           form.reset({ 
                name: data.name || '',
                industry: data.industry || '',
                contactPerson: data.contactPerson || '',
@@ -91,7 +91,7 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
         setIsLoading(false);
       }
     };
-    if (clientId) { // Ensure clientId is available
+    if (clientId) { 
         loadData();
     }
   }, [clientId, form, toast]);
@@ -103,10 +103,8 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
     try {
         await updateClient(clientId, formData);
         toast({ title: "Client Updated", description: `Client "${formData.name}" has been successfully updated.` });
-        // Update local clientData state if necessary, or rely on re-fetch/navigation
         setClientData(prev => prev ? { ...prev, ...formData } : null); 
-        form.reset(formData); // Reset form with new data to clear dirty state
-        // router.push(`/clients/${clientId}`); // Optional: redirect back to detail page
+        form.reset(formData); 
     } catch (error) {
          toast({ variant: "destructive", title: "Update Failed", description: (error as Error).message || "Could not update the client." });
     }
@@ -324,4 +322,8 @@ export default function EditClientPage({ params }: { params: Promise<{ clientId:
                         </div>
                     </form>
                 </Form>
-            </CardContent
+            </CardContent>
+      </Card>
+    </div>
+  );
+}
