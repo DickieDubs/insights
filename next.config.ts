@@ -1,9 +1,7 @@
-import type { NextConfig } from 'next';
+import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'export', // Set static export option
-
-  // Optional settings
+  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
