@@ -305,5 +305,4 @@ export {
   SidebarMenuButton,
   SidebarFooter,
   SidebarTrigger,
-  SidebarProvider,
 };
