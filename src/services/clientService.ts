@@ -20,15 +20,51 @@ export interface LoginResponse {
   expiresAt: string
 }
 
+interface RawClient {
+  id: string
+  name: string
+  email: string
+  status?: 'active' | 'inactive'
+  roles?: string[]
+  createdAt?: {
+    _seconds: number
+    _nanoseconds: number
+  }
+  updatedAt?: {
+    _seconds: number
+    _nanoseconds: number
+  }
+  password?: string
+  passwordHash?: string
+  brandIds?: string[]
+  phone?: string
+}
+
 import api from '../services/cia-api'
 
 export const listClients = async (): Promise<Client[]> => {
   try {
     const response = await api.get('/clients')
-    return response.data
+    // The API returns { success: true, data: [...] }
+    const clients = response.data.data || []
+
+    // Transform the data to match our Client interface
+    return (clients as RawClient[]).map((client) => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      status: client.status || 'active',
+      roles: client.roles || [],
+      createdAt: client.createdAt?._seconds
+        ? new Date(client.createdAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+      updatedAt: client.updatedAt?._seconds
+        ? new Date(client.updatedAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+    }))
   } catch (error) {
     console.error('Error listing clients:', error)
-    throw error // Or handle error more gracefully
+    throw error
   }
 }
 

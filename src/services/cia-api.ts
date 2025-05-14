@@ -245,6 +245,17 @@ export interface FullSystemReportData {
   [key: string]: any
 }
 
+export interface ActivityLog {
+  id: string
+  type: 'client' | 'campaign' | 'survey' | 'report'
+  action: string
+  title: string
+  subtitle: string
+  timestamp: string
+  userId?: string
+  userName?: string
+}
+
 // --- API SETUP ---
 
 const API_BASE_URL =
@@ -454,9 +465,24 @@ export type UpdateClientPayload = Partial<Omit<CreateClientPayload, 'password'>>
 
 export const getClients = async (): Promise<Client[]> => {
   try {
-    const { data } = await apiClient.get('/clients/list')
-    // Expecting { clients: [...] } or { data: { clients: [...] } } or just [...]
-    return (extractData(data, 'clients') as Client[]) ?? [] // Use nullish coalescing
+    const { data } = await apiClient.get('/clients')
+    // The API returns { success: true, data: [...] }
+    const clients = data.data || []
+    return clients.map((client: any) => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      roles: client.roles || [],
+      status: client.status || 'active',
+      phone: client.phone,
+      brandIds: client.brandIds || [],
+      createdAt: client.createdAt?._seconds
+        ? new Date(client.createdAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+      updatedAt: client.updatedAt?._seconds
+        ? new Date(client.updatedAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+    }))
   } catch (error) {
     console.error('Error fetching clients:', error)
     throw error
@@ -558,15 +584,26 @@ export interface CreateBrandPayload {
   name: string
   clientId: string
 }
-export type UpdateBrandPayload = Partial<Omit<CreateBrandPayload, 'clientId'>>
+export type UpdateBrandPayload = Partial<CreateBrandPayload> // Allow all fields to be updated
 
-export const getBrandsByClient = async (clientId: string): Promise<Brand[]> => {
+export const getBrands = async (): Promise<Brand[]> => {
   try {
-    // Ensure endpoint supports filtering by clientId
-    const { data } = await apiClient.get(`/brands?clientId=${clientId}`)
-    return (extractData(data, 'brands') as Brand[]) ?? []
+    const { data } = await apiClient.get('/brands')
+    // The API returns { success: true, data: [...] }
+    const brands = data.data || []
+    return brands.map((brand: any) => ({
+      id: brand.id,
+      name: brand.name,
+      clientId: brand.clientId,
+      description: brand.description,
+      logoUrl: brand.logoUrl,
+      status: brand.status || 'active',
+      createdAt: brand.createdAt?._seconds
+        ? new Date(brand.createdAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+    }))
   } catch (error) {
-    console.error(`Error fetching brands for client ${clientId}:`, error)
+    console.error('Error fetching brands:', error)
     throw error
   }
 }
@@ -665,6 +702,28 @@ export const deleteBrand = async (id: string): Promise<void> => {
   }
 }
 
+export const getBrandsByClient = async (clientId: string): Promise<Brand[]> => {
+  try {
+    const { data } = await apiClient.get(`/brands?clientId=${clientId}`)
+    // The API returns { success: true, data: [...] }
+    const brands = data.data || []
+    return brands.map((brand: any) => ({
+      id: brand.id,
+      name: brand.name,
+      clientId: brand.clientId,
+      description: brand.description,
+      logoUrl: brand.logoUrl,
+      status: brand.status || 'active',
+      createdAt: brand.createdAt?._seconds
+        ? new Date(brand.createdAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+    }))
+  } catch (error) {
+    console.error(`Error fetching brands for client ${clientId}:`, error)
+    throw error
+  }
+}
+
 // --- CAMPAIGNS CRUD ---
 export interface CreateCampaignPayload {
   name: string
@@ -681,8 +740,30 @@ export type UpdateCampaignPayload = Partial<
 
 export const getCampaigns = async (): Promise<Campaign[]> => {
   try {
-    const { data } = await apiClient.get('/campaigns/list')
-    return (extractData(data, 'campaigns') as Campaign[]) ?? []
+    const { data } = await apiClient.get('/campaigns')
+    // The API returns { success: true, data: [...] }
+    const campaigns = data.data || []
+    return campaigns.map((campaign: any) => ({
+      id: campaign.id,
+      title: campaign.title,
+      description: campaign.description,
+      clientId: campaign.clientId,
+      brandIds: campaign.brandIds || [],
+      rewards: campaign.rewards || [],
+      status: campaign.status || 'active',
+      startDate: campaign.startDate?._seconds
+        ? new Date(campaign.startDate._seconds * 1000).toISOString()
+        : undefined,
+      endDate: campaign.endDate?._seconds
+        ? new Date(campaign.endDate._seconds * 1000).toISOString()
+        : undefined,
+      createdAt: campaign.createdAt?._seconds
+        ? new Date(campaign.createdAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+      updatedAt: campaign.updatedAt?._seconds
+        ? new Date(campaign.updatedAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+    }))
   } catch (error) {
     console.error('Error fetching campaigns:', error)
     throw error
@@ -812,8 +893,60 @@ export interface AddQuestionPayload {
 
 export const getSurveys = async (): Promise<Survey[]> => {
   try {
-    const { data } = await apiClient.get('/surveys/list')
-    return (extractData(data, 'surveys') as Survey[]) ?? []
+    const { data } = await apiClient.get('/surveys/list') // Note: using /surveys/list endpoint
+    // The API returns { success: true, data: [...] }
+    const surveys = data.data || []
+    console.log('Raw survey data from API:', surveys) // Add logging
+
+    // Map the surveys first
+    const mappedSurveys = surveys.map((survey: any) => ({
+      id: survey.id,
+      name: survey.name,
+      campaignId: survey.campaignId,
+      brandId: survey.brandId,
+      questions: survey.questions || [],
+      status: survey.status || 'draft',
+      createdAt: survey.createdAt?._seconds
+        ? new Date(survey.createdAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+      updatedAt: survey.updatedAt?._seconds
+        ? new Date(survey.updatedAt._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+    }))
+
+    // If any survey doesn't have questions, fetch them individually
+    const surveysWithQuestions = await Promise.all(
+      mappedSurveys.map(async (survey: Survey) => {
+        if (!survey.questions || survey.questions.length === 0) {
+          try {
+            // Fetch individual survey to get questions
+            const { data: surveyData } = await apiClient.get(
+              `/surveys/${survey.id}`
+            )
+            const detailedSurvey = extractData(surveyData, 'survey')
+            if (detailedSurvey && detailedSurvey.questions) {
+              console.log(
+                `Fetched questions for survey ${survey.id}:`,
+                detailedSurvey.questions
+              )
+              return {
+                ...survey,
+                questions: detailedSurvey.questions,
+              }
+            }
+          } catch (error) {
+            console.warn(
+              `Failed to fetch questions for survey ${survey.id}:`,
+              error
+            )
+          }
+        }
+        return survey
+      })
+    )
+
+    console.log('Final surveys with questions:', surveysWithQuestions)
+    return surveysWithQuestions
   } catch (error) {
     console.error('Error fetching surveys:', error)
     throw error
@@ -1291,6 +1424,91 @@ export const getResourceByClient = async <T>(
       `Error fetching ${resourcePath} for client ${clientId}:`,
       error
     )
+    throw error
+  }
+}
+
+export const getActivityLogs = async (params?: {
+  page?: number
+  type?: string
+  search?: string
+}): Promise<ActivityLog[]> => {
+  try {
+    const { data } = await apiClient.get('/logs', { params })
+    // The API returns { success: true, data: [...] }
+    const logs = data.data || []
+    return logs.map((log: any) => ({
+      id: log.id,
+      type: log.type,
+      action: log.action,
+      title: log.title,
+      subtitle: log.subtitle,
+      timestamp: log.timestamp?._seconds
+        ? new Date(log.timestamp._seconds * 1000).toISOString()
+        : new Date().toISOString(),
+      userId: log.userId,
+      userName: log.userName,
+    }))
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.warn(
+        'Activity logs endpoint not implemented yet. Using placeholder data.'
+      )
+      // Return placeholder data until the endpoint is implemented
+      return [
+        {
+          id: '1',
+          type: 'client',
+          action: 'created',
+          title: 'New Client Signed Up',
+          subtitle: 'Example Corp',
+          timestamp: new Date().toISOString(),
+          userId: 'system',
+          userName: 'System',
+        },
+        {
+          id: '2',
+          type: 'campaign',
+          action: 'launched',
+          title: 'Campaign Launched',
+          subtitle: 'Summer Promotion 2024',
+          timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+          userId: 'system',
+          userName: 'System',
+        },
+        {
+          id: '3',
+          type: 'survey',
+          action: 'created',
+          title: 'New Survey Created',
+          subtitle: 'Customer Feedback Survey',
+          timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+          userId: 'system',
+          userName: 'System',
+        },
+        {
+          id: '4',
+          type: 'report',
+          action: 'generated',
+          title: 'System Report Generated',
+          subtitle: 'Monthly Analytics Summary',
+          timestamp: new Date(Date.now() - 10800000).toISOString(), // 3 hours ago
+          userId: 'system',
+          userName: 'System',
+        },
+        {
+          id: '5',
+          type: 'campaign',
+          action: 'updated',
+          title: 'Campaign Updated',
+          subtitle: 'Brand Awareness Campaign',
+          timestamp: new Date(Date.now() - 14400000).toISOString(), // 4 hours ago
+          userId: 'system',
+          userName: 'System',
+        },
+      ]
+    }
+    console.error('Error fetching activity logs:', error)
     throw error
   }
 }

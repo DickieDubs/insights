@@ -1372,147 +1372,167 @@ export default function PlatformSettingsPage() {
                       </DialogDescription>
                     </DialogHeader>
                     {selectedIntegration && (
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault()
-                          // TODO: Implement integration update
-                          setIsIntegrationDialogOpen(false)
-                        }}
-                      >
-                        <div className="grid gap-4 py-4">
-                          {selectedIntegration.config.apiKey && (
-                            <FormField
-                              control={integrationForm.control}
-                              name="apiKey"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>API Key</FormLabel>
-                                  <FormControl>
-                                    <div className="flex space-x-2">
+                      <Form {...integrationForm}>
+                        <form
+                          onSubmit={integrationForm.handleSubmit((data) => {
+                            console.log('Integration form data:', data)
+                            setIsIntegrationDialogOpen(false)
+                          })}
+                        >
+                          <div className="grid gap-4 py-4">
+                            {selectedIntegration.config.apiKey && (
+                              <FormField
+                                control={integrationForm.control}
+                                name="apiKey"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>API Key</FormLabel>
+                                    <FormControl>
+                                      <div className="flex space-x-2">
+                                        <Input
+                                          type="password"
+                                          {...field}
+                                          value={
+                                            selectedIntegration.config.apiKey
+                                          }
+                                          onChange={(e) => {
+                                            field.onChange(e.target.value)
+                                            handleIntegrationUpdate(
+                                              selectedIntegration.id,
+                                              {
+                                                config: {
+                                                  ...selectedIntegration.config,
+                                                  apiKey: e.target.value,
+                                                },
+                                              }
+                                            )
+                                          }}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          onClick={() => {
+                                            // TODO: Implement API key generation
+                                            toast({
+                                              title: 'API Key Generated',
+                                              description:
+                                                'A new API key has been generated.',
+                                            })
+                                          }}
+                                        >
+                                          <Key className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </FormControl>
+                                    <FormDescription>
+                                      Your {selectedIntegration.name} API key
+                                    </FormDescription>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {selectedIntegration.config.webhookUrl && (
+                              <FormField
+                                control={integrationForm.control}
+                                name="webhookUrl"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Webhook URL</FormLabel>
+                                    <FormControl>
                                       <Input
-                                        type="password"
                                         {...field}
                                         value={
-                                          selectedIntegration.config.apiKey
+                                          selectedIntegration.config.webhookUrl
                                         }
-                                        onChange={(e) =>
+                                        onChange={(e) => {
+                                          field.onChange(e.target.value)
                                           handleIntegrationUpdate(
                                             selectedIntegration.id,
                                             {
                                               config: {
                                                 ...selectedIntegration.config,
-                                                apiKey: e.target.value,
+                                                webhookUrl: e.target.value,
                                               },
                                             }
                                           )
-                                        }
-                                      />
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => {
-                                          // TODO: Implement API key generation
-                                          toast({
-                                            title: 'API Key Generated',
-                                            description:
-                                              'A new API key has been generated.',
-                                          })
                                         }}
-                                      >
-                                        <Key className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </FormControl>
-                                  <FormDescription>
-                                    Your {selectedIntegration.name} API key
-                                  </FormDescription>
-                                </FormItem>
-                              )}
-                            />
-                          )}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      Webhook URL for {selectedIntegration.name}{' '}
+                                      notifications
+                                    </FormDescription>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
 
-                          {selectedIntegration.config.webhookUrl && (
-                            <FormField
-                              control={integrationForm.control}
-                              name="webhookUrl"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Webhook URL</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      {...field}
-                                      value={
-                                        selectedIntegration.config.webhookUrl
-                                      }
-                                      onChange={(e) =>
-                                        handleIntegrationUpdate(
-                                          selectedIntegration.id,
-                                          {
-                                            config: {
-                                              ...selectedIntegration.config,
-                                              webhookUrl: e.target.value,
-                                            },
-                                          }
+                            {selectedIntegration.config.scopes && (
+                              <FormField
+                                control={integrationForm.control}
+                                name="scopes"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Required Scopes</FormLabel>
+                                    <div className="space-y-2">
+                                      {selectedIntegration.config.scopes?.map(
+                                        (scope) => (
+                                          <div
+                                            key={scope}
+                                            className="flex items-center space-x-2"
+                                          >
+                                            <Checkbox
+                                              id={`scope-${scope}`}
+                                              checked={field.value?.includes(
+                                                scope
+                                              )}
+                                              onCheckedChange={(checked) => {
+                                                const currentScopes =
+                                                  field.value || []
+                                                if (checked) {
+                                                  field.onChange([
+                                                    ...currentScopes,
+                                                    scope,
+                                                  ])
+                                                } else {
+                                                  field.onChange(
+                                                    currentScopes.filter(
+                                                      (s) => s !== scope
+                                                    )
+                                                  )
+                                                }
+                                              }}
+                                            />
+                                            <Label htmlFor={`scope-${scope}`}>
+                                              {scope}
+                                            </Label>
+                                          </div>
                                         )
-                                      }
-                                    />
-                                  </FormControl>
-                                  <FormDescription>
-                                    Webhook URL for {selectedIntegration.name}{' '}
-                                    notifications
-                                  </FormDescription>
-                                </FormItem>
-                              )}
-                            />
-                          )}
-
-                          {selectedIntegration.config.scopes && (
-                            <FormField
-                              control={integrationForm.control}
-                              name="scopes"
-                              render={() => (
-                                <FormItem>
-                                  <FormLabel>Required Scopes</FormLabel>
-                                  <div className="space-y-2">
-                                    {selectedIntegration.config.scopes?.map(
-                                      (scope) => (
-                                        <div
-                                          key={scope}
-                                          className="flex items-center space-x-2"
-                                        >
-                                          <Checkbox
-                                            id={`scope-${scope}`}
-                                            checked={true}
-                                            disabled
-                                          />
-                                          <Label htmlFor={`scope-${scope}`}>
-                                            {scope}
-                                          </Label>
-                                        </div>
-                                      )
-                                    )}
-                                  </div>
-                                  <FormDescription>
-                                    Required permissions for{' '}
-                                    {selectedIntegration.name}
-                                  </FormDescription>
-                                </FormItem>
-                              )}
-                            />
-                          )}
-                        </div>
-                        <DialogFooter>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsIntegrationDialogOpen(false)}
-                          >
-                            Cancel
-                          </Button>
-                          <Button type="submit">Save Changes</Button>
-                        </DialogFooter>
-                      </form>
+                                      )}
+                                    </div>
+                                    <FormDescription>
+                                      Required permissions for{' '}
+                                      {selectedIntegration.name}
+                                    </FormDescription>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setIsIntegrationDialogOpen(false)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Save Changes</Button>
+                          </DialogFooter>
+                        </form>
+                      </Form>
                     )}
                   </DialogContent>
                 </Dialog>
