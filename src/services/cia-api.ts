@@ -378,7 +378,7 @@ export type UpdateClientPayload = Partial<Omit<CreateClientPayload, 'password'>>
 
 export const getClients = async (): Promise<Client[]> => {
   try {
-    const { data } = await apiClient.get('/clients/list');
+    const { data } = await apiClient.get('/clients');
     // Expecting { clients: [...] } or { data: { clients: [...] } } or just [...]
     return (data['data'] as Client[]) ?? [];
   } catch (error) {
@@ -496,7 +496,7 @@ export const getBrandsByClient = async (clientId: string): Promise<Brand[]> => {
 
 export const getAllBrands = async (): Promise<Brand[]> => {
   try {
-    const { data } = await apiClient.get('/brands/list');
+    const { data } = await apiClient.get('/brands');
     return (data['data'] as Brand[]) ?? [];
   } catch (error) {
     console.error('Error fetching all brands:', error)
@@ -604,7 +604,7 @@ export type UpdateCampaignPayload = Partial<
 
 export const getCampaigns = async (): Promise<Campaign[]> => {
   try {
-    const { data } = await apiClient.get('/campaigns/list')
+    const { data } = await apiClient.get('/campaigns')
     return (data['data'] as Campaign[]) ?? []
   } catch (error) {
     console.error('Error fetching campaigns:', error)
@@ -735,7 +735,7 @@ export interface AddQuestionPayload {
 
 export const getSurveys = async (): Promise<Survey[]> => {
   try {
-    const { data } = await apiClient.get('/surveys/list')
+    const { data } = await apiClient.get('/surveys')
     return (data['data'] as Survey[]) ?? []
   } catch (error) {
     console.error('Error fetching surveys:', error)
