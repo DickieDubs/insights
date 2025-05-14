@@ -132,8 +132,8 @@ export interface SystemReportData {
 
 // --- API SETUP ---
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://cia-api-cf9bcb3349bc.herokuapp.com';
-
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://cia-api-cf9bcb3349bc.herokuapp.com';
+console.log('BASE URL',API_BASE_URL)
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -296,9 +296,12 @@ export type UpdateClientPayload = Partial<Omit<CreateClientPayload, 'password'>>
 
 export const getClients = async (): Promise<Client[]> => {
   try {
-    const { data } = await apiClient.get('/clients/list');
+    const { data } = await apiClient.get('/clients');
     // Expecting { clients: [...] } or { data: { clients: [...] } } or just [...]
-    return extractData(data, 'clients') as Client[] ?? []; // Use nullish coalescing
+    console.log('FETCHED DATA',data)
+    const exctracted= data['data'] as Client[] ?? []; // Use nullish coalescing
+    console.log('EXTRACTED',exctracted)
+    return exctracted;
   } catch (error) {
     console.error("Error fetching clients:", error);
     throw error;
@@ -320,7 +323,7 @@ export const createClient = async (clientData: CreateClientPayload): Promise<Cli
   try {
     const { data } = await apiClient.post<AuthResponse>('/clients/create', clientData);
     // Look for 'client', 'user', or direct object
-    const createdClient = extractData(data, 'client') || extractData(data, 'user');
+    const createdClient = data['data'] as Client
      if (createdClient) return createdClient as Client;
 
      // Fallback check if the response itself is the client object
@@ -375,7 +378,7 @@ export const getBrandsByClient = async (clientId: string): Promise<Brand[]> => {
   try {
     // Ensure endpoint supports filtering by clientId
     const { data } = await apiClient.get(`/brands?clientId=${clientId}`);
-    return extractData(data, 'brands') as Brand[] ?? [];
+    return data['data'] as Brand[] ?? [];
   } catch (error) {
     console.error(`Error fetching brands for client ${clientId}:`, error);
     throw error;
@@ -384,8 +387,8 @@ export const getBrandsByClient = async (clientId: string): Promise<Brand[]> => {
 
 export const getAllBrands = async (): Promise<Brand[]> => {
   try {
-    const { data } = await apiClient.get('/brands/list');
-    return extractData(data, 'brands') as Brand[] ?? [];
+    const { data } = await apiClient.get('/brands');
+    return data['data'] as Brand[] ?? [];
   } catch (error) {
     console.error("Error fetching all brands:", error);
     throw error;
