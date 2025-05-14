@@ -253,7 +253,7 @@ export default function AdminDashboardPage() {
           </AlertDescription>
         </Alert>
       ) : metrics.totalSurveys === 0 ? (
-        <span className="text-sm text-muted-foreground">0</span>
+        <span className="text-3xl text-muted-foreground">0</span>
       ) : (
         metrics.totalQuestions.toLocaleString()
       ),
