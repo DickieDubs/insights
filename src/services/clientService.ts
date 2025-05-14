@@ -24,7 +24,7 @@ import api from '../services/cia-api'
 
 export const listClients = async (): Promise<Client[]> => {
   try {
-    const response = await api.get('/clients/list')
+    const response = await api.get('/clients')
     return response.data
   } catch (error) {
     console.error('Error listing clients:', error)

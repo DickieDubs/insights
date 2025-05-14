@@ -2,15 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, PanelLeftClose, PanelRightClose } from "lucide-react";
+import { PanelLeftOpen } from "lucide-react"; // Removed unused icons, kept PanelLeftOpen
 import { useMediaQuery } from "usehooks-ts";
-import { useLocalStorage } from "usehooks-ts";
 import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Import Sheet
-import { Sheet, SheetTrigger as UiSheetTrigger } from "@/components/ui/sheet"; // Renamed to avoid conflict
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+// Removed UiSheetTrigger as it's not directly used by the fixed SidebarTrigger on mobile
 
 interface SidebarContextValue {
   isDesktopOpen: boolean;
@@ -31,52 +30,59 @@ export const useSidebar = () => {
 
 interface SidebarProviderProps extends React.PropsWithChildren {
   defaultOpen?: boolean;
-  isMobileSheetOpen?: boolean;
-  setIsMobileSheetOpen?: (open: boolean | ((prev: boolean) => boolean)) => void;
+  // Removed externalMobileOpen and externalSetMobileOpen as internal state should suffice
 }
 
-export const SidebarProvider = ({ children, defaultOpen = true, isMobileSheetOpen: externalMobileOpen, setIsMobileSheetOpen: externalSetMobileOpen }: SidebarProviderProps) => {
-  const isDesktop = useMediaQuery("(min-width: 768px)"); // md breakpoint
-  const [isDesktopOpen, setIsDesktopOpenState] = useLocalStorage("sidebar-desktop-open", defaultOpen);
-  
-  // Internal state for mobile sheet if not controlled externally
-  const [internalMobileSheetOpen, setInternalMobileSheetOpen] = React.useState(false);
+export const SidebarProvider = ({ children, defaultOpen = true }: SidebarProviderProps) => {
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [isDesktopOpenState, setIsDesktopOpenState] = React.useState(defaultOpen);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
 
-  const isMobileSheetOpen = externalMobileOpen !== undefined ? externalMobileOpen : internalMobileSheetOpen;
-  const setIsMobileSheetOpen = externalSetMobileOpen || setInternalMobileSheetOpen;
-
+  React.useEffect(() => {
+    console.log("SidebarProvider: isDesktopOpenState (from useState) changed to:", isDesktopOpenState);
+  }, [isDesktopOpenState]);
 
   const setIsDesktopOpen = React.useCallback((value: boolean | ((prevState: boolean) => boolean)) => {
+    console.log("SidebarProvider: setIsDesktopOpen called. isDesktop:", isDesktop);
     if (isDesktop) {
+      console.log("SidebarProvider: Calling setIsDesktopOpenState (useState setter)");
       setIsDesktopOpenState(value);
     } else {
-       setIsMobileSheetOpen(value);
+      // This case should ideally not be hit if SidebarTrigger handles mobile separately
+      console.warn("SidebarProvider: setIsDesktopOpen called on mobile, which might be unintended. Toggling mobile sheet instead.");
+      setIsMobileSheetOpen(value);
     }
   }, [isDesktop, setIsDesktopOpenState, setIsMobileSheetOpen]);
 
-
-  // Sync desktop open state with mobile sheet state when screen size changes
+  // Determine the effective isDesktopOpen value for the context
+  const contextValueIsDesktopOpen = isDesktop ? isDesktopOpenState : false;
   React.useEffect(() => {
-    if (!isDesktop && isDesktopOpen) { // Switched to mobile and desktop sidebar was open
-      setIsMobileSheetOpen(true);
-      // setIsDesktopOpenState(false); // Optionally close desktop state representation
-    } else if (isDesktop && isMobileSheetOpen) { // Switched to desktop and mobile sheet was open
-      // setIsDesktopOpenState(true); // Optionally open desktop state representation
+    console.log("SidebarProvider: contextValueIsDesktopOpen for context is now:", contextValueIsDesktopOpen);
+  }, [contextValueIsDesktopOpen]);
+
+  React.useEffect(() => {
+    // If switching from desktop to mobile view
+    if (!isDesktop && isDesktopOpenState) {
+      // If the desktop sidebar was open, ensure the mobile sheet reflects an open state if desired,
+      // or close the desktop state. For now, we let mobile sheet be controlled independently by its trigger.
+      // setIsMobileSheetOpen(true); // Example: open mobile sheet if desktop was open
+    }
+    // If switching from mobile to desktop view
+    else if (isDesktop && isMobileSheetOpen) {
+      // If the mobile sheet was open, close it.
       setIsMobileSheetOpen(false);
     }
-  }, [isDesktop, isDesktopOpen, isMobileSheetOpen, setIsDesktopOpenState, setIsMobileSheetOpen]);
-
+  }, [isDesktop, isDesktopOpenState, isMobileSheetOpen, setIsMobileSheetOpen]);
 
   return (
-    <SidebarContext.Provider value={{ isDesktopOpen: isDesktop ? isDesktopOpen : false , setIsDesktopOpen, isMobileSheetOpen, setIsMobileSheetOpen }}>
+    <SidebarContext.Provider value={{ isDesktopOpen: contextValueIsDesktopOpen, setIsDesktopOpen, isMobileSheetOpen, setIsMobileSheetOpen }}>
       {children}
     </SidebarContext.Provider>
   );
 };
 
-
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
-  collapsible?: "icon" | "full"; // 'full' means it can be fully hidden, 'icon' means it collapses to icons
+  collapsible?: "icon" | "full";
 }
 
 const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
@@ -89,7 +95,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
         ref={ref}
         className={cn(
           "bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 ease-in-out",
-          isDesktopOpen ? "w-64" : (collapsible === "icon" ? "w-[56px]" : "w-0"), 
+          isDesktopOpen ? "w-64" : (collapsible === "icon" ? "w-[72px]" : "w-0"),
           isActualIconOnlyStateForAside && "items-center",
           className
         )}
@@ -130,7 +136,7 @@ SidebarHeader.displayName = "SidebarHeader";
 const SidebarContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & SidebarChildProps
->(({ className, isIconOnly, ...props }, ref) => { 
+>(({ className, isIconOnly: _isIconOnly, ...props }, ref) => {
   return (
     <div
       ref={ref}
@@ -144,7 +150,7 @@ SidebarContent.displayName = "SidebarContent";
 const SidebarMenu = React.forwardRef<
   HTMLUListElement,
   React.HTMLAttributes<HTMLUListElement> & SidebarChildProps
->(({ className, isIconOnly, ...props }, ref) => { 
+>(({ className, isIconOnly: _isIconOnly, ...props }, ref) => {
   return (
     <ul
       ref={ref}
@@ -157,8 +163,8 @@ SidebarMenu.displayName = "SidebarMenu";
 
 const SidebarMenuItem = React.forwardRef<
   HTMLLIElement,
-  React.HTMLAttributes<HTMLLIElement> & SidebarChildProps
->(({ className, isIconOnly: _isIconOnly, ...props }, ref) => { // _isIconOnly to avoid passing to DOM element
+  React.HTMLAttributes<HTMLLIElement>
+>(({ className, ...props }, ref) => {
   return (
     <li
       ref={ref}
@@ -191,7 +197,6 @@ const SidebarMenuButton = React.forwardRef<
     const { isDesktopOpen } = useSidebar();
     const isIconOnly = propIsIconOnly !== undefined ? propIsIconOnly : !isDesktopOpen;
 
-
     const buttonContent = (
       <Button
         ref={ref}
@@ -205,11 +210,11 @@ const SidebarMenuButton = React.forwardRef<
         )}
         {...props}
       >
-        {React.Children.map(children, (child, index) => {
-          if (React.isValidElement(child) && child.type !== "span") { // Icon
+        {React.Children.map(children, (child) => {
+          if (React.isValidElement(child) && child.type !== "span") {
             return React.cloneElement(child, { className: cn("h-5 w-5", (child.props as any).className) } as any);
           }
-          if (isIconOnly && React.isValidElement(child) && child.type === "span") { // Text label for icon only
+          if (isIconOnly && React.isValidElement(child) && child.type === "span") {
             return null;
           }
           return child;
@@ -229,7 +234,6 @@ const SidebarMenuButton = React.forwardRef<
         </TooltipProvider>
       );
     }
-
     return buttonContent;
   }
 );
@@ -238,7 +242,7 @@ SidebarMenuButton.displayName = "SidebarMenuButton";
 const SidebarFooter = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & SidebarChildProps
->(({ className, isIconOnly, ...props }, ref) => { 
+>(({ className, isIconOnly: _isIconOnly, ...props }, ref) => {
   return (
     <div
       ref={ref}
@@ -254,12 +258,13 @@ interface SidebarTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonEleme
 }
 
 const SidebarTrigger = React.forwardRef<HTMLButtonElement, SidebarTriggerProps>(
-  ({ className, asChild = false, ...props }, ref) => {
-    const { isDesktopOpen, setIsDesktopOpen, setIsMobileSheetOpen } = useSidebar();
+  ({ className, asChild = false, children, ...props }, ref) => {
+    const { setIsDesktopOpen, setIsMobileSheetOpen } = useSidebar();
     const isDesktop = useMediaQuery("(min-width: 768px)");
     const Comp = asChild ? Slot : Button;
 
     const handleClick = () => {
+      console.log("SidebarTrigger (hamburger/main toggle) clicked. isDesktop:", isDesktop);
       if (isDesktop) {
         setIsDesktopOpen(prev => !prev);
       } else {
@@ -267,34 +272,41 @@ const SidebarTrigger = React.forwardRef<HTMLButtonElement, SidebarTriggerProps>(
       }
     };
     
-    if (!isDesktop) { // For mobile, use SheetTrigger
+    // For mobile, this trigger should just be a button that toggles the state for MobileSheet.
+    // It should not be a Radix SheetTrigger itself.
+    if (!isDesktop) {
       return (
-        <Sheet>
-          <UiSheetTrigger asChild={asChild} className={className} {...props} ref={ref}>
-              {asChild ? props.children : <PanelLeftClose className="h-6 w-6" />}
-          </UiSheetTrigger>
-        </Sheet>
+         <Comp
+            ref={ref}
+            variant="ghost"
+            size="icon"
+            className={cn(className)}
+            onClick={handleClick}
+            {...props}
+          >
+           {children || <PanelLeftOpen className="h-5 w-5" />}
+          </Comp>
       );
     }
 
-    // For desktop, use custom button for collapsing/expanding
+    // This is the desktop toggle button (persists on screen, usually bottom-left)
+    // It remains a regular button that controls the desktop sidebar state.
     return (
       <Comp
         ref={ref}
         variant="ghost"
         size="icon"
-        className={cn("fixed bottom-4 left-4 z-50 hidden md:inline-flex", className)}
+        className={cn("fixed bottom-4 left-4 z-50 hidden md:inline-flex", className)} 
         onClick={handleClick}
         {...props}
       >
-        {isDesktopOpen ? <PanelLeftClose className="h-6 w-6" /> : <PanelRightClose className="h-6 w-6" />}
-        <span className="sr-only">{isDesktopOpen ? "Collapse Sidebar" : "Expand Sidebar"}</span>
+        {children || <PanelLeftOpen className="h-6 w-6" />} 
+        <span className="sr-only">Toggle Sidebar</span>
       </Comp>
     );
   }
 );
 SidebarTrigger.displayName = "SidebarTrigger";
-
 
 export {
   Sidebar,
@@ -305,4 +317,5 @@ export {
   SidebarMenuButton,
   SidebarFooter,
   SidebarTrigger,
+  SidebarProvider, // Ensure SidebarProvider is exported
 };
