@@ -1,6 +1,6 @@
 
 import type { ReactNode } from 'react';
-import { SidebarTrigger } from './Sidebar'; // Changed import from MobileSidebarTrigger
+import { SidebarTrigger } from '@/components/ui/sidebar'; // Corrected import path
 
 interface PageHeaderProps {
   title: string;
@@ -17,3 +17,4 @@ export function PageHeader({ title, actions }: PageHeaderProps) {
     </header>
   );
 }
+

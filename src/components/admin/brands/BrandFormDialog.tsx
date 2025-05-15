@@ -1,12 +1,12 @@
-"use client";
+'use client'
 
-import type { Brand, Client } from "@/services/cia-api";
-import type { BrandFormData } from "@/lib/schemas";
-import { BrandSchema } from "@/lib/schemas";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import React from "react";
-import { Button } from "@/components/ui/button";
+import type { Brand, Client } from '@/services/cia-api'
+import type { BrandFormData } from '@/lib/schemas'
+import { BrandSchema } from '@/lib/schemas'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import React from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -22,25 +22,25 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+} from '@/components/ui/select'
+import { Loader2 } from 'lucide-react'
 
 interface BrandFormDialogProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  brand?: Brand | null; // For pre-filling form in edit mode
-  clients: Client[]; // List of clients to associate the brand with
-  onSubmit: (data: BrandFormData) => Promise<void>;
-  isSubmitting: boolean;
-  isLoadingClients: boolean;
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  brand?: Brand | null // For pre-filling form in edit mode
+  clients: Client[] // List of clients to associate the brand with
+  onSubmit: (data: BrandFormData) => Promise<void>
+  isSubmitting: boolean
+  isLoadingClients: boolean
 }
 
 export function BrandFormDialog({
@@ -56,8 +56,8 @@ export function BrandFormDialog({
     resolver: zodResolver(BrandSchema),
     defaultValues: brand
       ? { id: brand.id, name: brand.name, clientId: brand.clientId }
-      : { name: "", clientId: "" },
-  });
+      : { name: '', clientId: '' },
+  })
 
   React.useEffect(() => {
     if (isOpen) {
@@ -66,35 +66,41 @@ export function BrandFormDialog({
           id: brand.id,
           name: brand.name,
           clientId: brand.clientId,
-        });
+        })
       } else {
-        form.reset({ name: "", clientId: "" });
+        form.reset({ name: '', clientId: '' })
       }
     }
-  }, [brand, form, isOpen]);
+  }, [brand, form, isOpen])
 
   const handleFormSubmit = async (data: BrandFormData) => {
-    await onSubmit(data);
-  };
+    await onSubmit(data)
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) {
-        form.reset();
-      }
-      onOpenChange(open);
-    }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          form.reset()
+        }
+        onOpenChange(open)
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{brand ? "Edit Brand" : "Add New Brand"}</DialogTitle>
+          <DialogTitle>{brand ? 'Edit Brand' : 'Add New Brand'}</DialogTitle>
           <DialogDescription>
             {brand
               ? "Update the brand's details below."
-              : "Fill in the form to add a new brand."}
+              : 'Fill in the form to add a new brand.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4 py-4">
+          <form
+            onSubmit={form.handleSubmit(handleFormSubmit)}
+            className="space-y-4 py-4"
+          >
             <FormField
               control={form.control}
               name="name"
@@ -102,7 +108,11 @@ export function BrandFormDialog({
                 <FormItem>
                   <FormLabel>Brand Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Brand's name" {...field} disabled={isSubmitting} />
+                    <Input
+                      placeholder="Brand's name"
+                      {...field}
+                      disabled={isSubmitting}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -117,16 +127,24 @@ export function BrandFormDialog({
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
-                    disabled={isSubmitting || isLoadingClients || !!brand} // Disable if editing
+                    disabled={isSubmitting || isLoadingClients}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={isLoadingClients ? "Loading clients..." : "Select a client"} />
+                        <SelectValue
+                          placeholder={
+                            isLoadingClients
+                              ? 'Loading clients...'
+                              : 'Select a client'
+                          }
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {isLoadingClients ? (
-                        <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        <SelectItem value="loading" disabled>
+                          Loading...
+                        </SelectItem>
                       ) : (
                         clients.map((client) => (
                           <SelectItem key={client.id} value={client.id}>
@@ -136,23 +154,29 @@ export function BrandFormDialog({
                       )}
                     </SelectContent>
                   </Select>
-                  {brand && <FormMessage>Client cannot be changed after brand creation.</FormMessage>}
-                  {!brand && <FormMessage />}
+                  <FormMessage />
                 </FormItem>
               )}
             />
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting || isLoadingClients}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {brand ? "Save Changes" : "Add Brand"}
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {brand ? 'Save Changes' : 'Add Brand'}
               </Button>
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
