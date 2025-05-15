@@ -258,9 +258,7 @@ export interface ActivityLog {
 
 // --- API SETUP ---
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'https://cia-api-cf9bcb3349bc.herokuapp.com'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://cia-api-cf9bcb3349bc.herokuapp.com';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -292,80 +290,6 @@ apiClient.interceptors.response.use(
   }
 )
 
-// Helper to extract data from various API response structures
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const extractData = (responseData: any, entityKey: string): any => {
-  const isPluralKey = entityKey.endsWith('s')
-  const defaultReturnValue = isPluralKey ? [] : null
-
-  if (responseData === null || responseData === undefined) {
-    return defaultReturnValue
-  }
-
-  // Case 1: Direct data (e.g., response is the array/object itself)
-  if (entityKey === 'response') {
-    if (isPluralKey && !Array.isArray(responseData)) return []
-    if (!isPluralKey && Array.isArray(responseData)) return null
-    return responseData
-  }
-
-  // Case 2: responseData is an object containing the entityKey (e.g. { clients: [...] })
-  if (typeof responseData === 'object' && entityKey in responseData) {
-    const value = responseData[entityKey]
-    if (isPluralKey && (value === undefined || value === null)) return []
-    if (isPluralKey && !Array.isArray(value)) return []
-    if (!isPluralKey && Array.isArray(value)) return null
-    return value
-  }
-
-  // Case 3: responseData has a 'data' property, which then contains entityKey (e.g. { data: { clients: [...] } })
-  if (
-    typeof responseData === 'object' &&
-    responseData.data &&
-    typeof responseData.data === 'object' &&
-    entityKey in responseData.data
-  ) {
-    const valueInData = responseData.data[entityKey]
-    if (isPluralKey && (valueInData === undefined || valueInData === null))
-      return []
-    if (isPluralKey && !Array.isArray(valueInData)) return []
-    if (!isPluralKey && Array.isArray(valueInData)) return null
-    return valueInData
-  }
-
-  // Case 4: responseData is the single entity itself (e.g., GET /client/1 -> returns Client object directly)
-  // This is a fallback if entityKey was not found. Be cautious as it might misinterpret the response.
-  if (
-    !isPluralKey &&
-    typeof responseData === 'object' &&
-    !Array.isArray(responseData)
-  ) {
-    // Basic check if it looks like the entity (has an 'id' maybe?)
-    // This is heuristic and might need refinement based on actual API responses.
-    if ('id' in responseData || Object.keys(responseData).length > 0) {
-      // console.warn(`extractData assuming response is the entity for key: ${entityKey}`, responseData);
-      return responseData
-    }
-  }
-
-  // Case 5: responseData is an array but we expect a single entity (e.g. GET /report -> returns [{...report_data...}])
-  if (
-    !isPluralKey &&
-    Array.isArray(responseData) &&
-    responseData.length === 1
-  ) {
-    // console.warn(`extractData assuming first element of array is the entity for key: ${entityKey}`, responseData[0]);
-    return responseData[0]
-  }
-  // Case 6: responseData is an array and we expect an array (e.g. GET /list -> returns [{item1}, {item2}])
-  if (isPluralKey && Array.isArray(responseData)) {
-    // console.warn(`extractData assuming response is the array for key: ${entityKey}`, responseData);
-    return responseData
-  }
-
-  // console.warn(`extractData failed to find key '${entityKey}' in structure`, responseData);
-  return defaultReturnValue
-}
 
 // --- AUTHENTICATION ---
 interface AuthResponse {
@@ -483,6 +407,10 @@ export const getClients = async (): Promise<Client[]> => {
         ? new Date(client.updatedAt._seconds * 1000).toISOString()
         : new Date().toISOString(),
     }))
+
+    const { data } = await apiClient.get('/clients/list');
+    // Expecting { clients: [...] } or { data: { clients: [...] } } or just [...]
+    return (data['data'] as Client[]) ?? [];
   } catch (error) {
     console.error('Error fetching clients:', error)
     throw error
@@ -493,7 +421,7 @@ export const getClient = async (id: string): Promise<Client | null> => {
   try {
     const { data } = await apiClient.get(`/clients/${id}`)
     // Expecting { client: {...} } or { data: { client: {...} } } or just {...}
-    return extractData(data, 'client') as Client | null
+    return (data['data'] as Client) ?? null
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(
@@ -515,9 +443,8 @@ export const createClient = async (
       clientData
     )
     // Look for 'client', 'user', or direct object
-    const createdClient =
-      extractData(data, 'client') || extractData(data, 'user')
-    if (createdClient) return createdClient as Client
+    const createdClient = data['data'] as Client;
+     if (createdClient) return createdClient as Client;
 
     // Fallback check if the response itself is the client object
     if (
@@ -547,8 +474,8 @@ export const updateClient = async (
 ): Promise<Client> => {
   try {
     const { data } = await apiClient.put(`/clients/${id}`, clientData)
-    const updatedClient = extractData(data, 'client')
-    if (updatedClient) return updatedClient as Client
+    const updatedClient = data['data'] as Client
+    if (updatedClient) return updatedClient
 
     if (
       typeof data === 'object' &&
@@ -588,6 +515,7 @@ export type UpdateBrandPayload = Partial<CreateBrandPayload> // Allow all fields
 
 export const getBrands = async (): Promise<Brand[]> => {
   try {
+
     const { data } = await apiClient.get('/brands')
     // The API returns { success: true, data: [...] }
     const brands = data.data || []
@@ -602,6 +530,10 @@ export const getBrands = async (): Promise<Brand[]> => {
         ? new Date(brand.createdAt._seconds * 1000).toISOString()
         : new Date().toISOString(),
     }))
+
+    // Ensure endpoint supports filtering by clientId
+    const { data } = await apiClient.get(`/brands?clientId=${clientId}`);
+    return (data['data'] as Brand[]) ?? [];
   } catch (error) {
     console.error('Error fetching brands:', error)
     throw error
@@ -610,8 +542,8 @@ export const getBrands = async (): Promise<Brand[]> => {
 
 export const getAllBrands = async (): Promise<Brand[]> => {
   try {
-    const { data } = await apiClient.get('/brands/list')
-    return (extractData(data, 'brands') as Brand[]) ?? []
+    const { data } = await apiClient.get('/brands/list');
+    return (data['data'] as Brand[]) ?? [];
   } catch (error) {
     console.error('Error fetching all brands:', error)
     throw error
@@ -621,7 +553,7 @@ export const getAllBrands = async (): Promise<Brand[]> => {
 export const getBrand = async (id: string): Promise<Brand | null> => {
   try {
     const { data } = await apiClient.get(`/brands/${id}`)
-    return extractData(data, 'brand') as Brand | null
+    return (data['data'] as Brand) ?? null
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(
@@ -639,8 +571,8 @@ export const createBrand = async (
 ): Promise<Brand> => {
   try {
     const { data } = await apiClient.post('/brands/create', brandData)
-    const createdBrand = extractData(data, 'brand')
-    if (createdBrand) return createdBrand as Brand
+    const createdBrand = data['data'] as Brand
+    if (createdBrand) return createdBrand
 
     if (
       typeof data === 'object' &&
@@ -669,8 +601,8 @@ export const updateBrand = async (
 ): Promise<Brand> => {
   try {
     const { data } = await apiClient.put(`/brands/${id}`, brandData)
-    const updatedBrand = extractData(data, 'brand')
-    if (updatedBrand) return updatedBrand as Brand
+    const updatedBrand = data['data'] as Brand
+    if (updatedBrand) return updatedBrand
 
     if (
       typeof data === 'object' &&
@@ -764,6 +696,9 @@ export const getCampaigns = async (): Promise<Campaign[]> => {
         ? new Date(campaign.updatedAt._seconds * 1000).toISOString()
         : new Date().toISOString(),
     }))
+    const { data } = await apiClient.get('/campaigns/list')
+    return (data['data'] as Campaign[]) ?? []
+
   } catch (error) {
     console.error('Error fetching campaigns:', error)
     throw error
@@ -776,7 +711,7 @@ export const getCampaignsByClient = async (
   try {
     // Ensure endpoint supports filtering by clientId
     const { data } = await apiClient.get(`/campaigns?clientId=${clientId}`)
-    return (extractData(data, 'campaigns') as Campaign[]) ?? []
+    return (data['data'] as Campaign[]) ?? []
   } catch (error) {
     console.error(`Error fetching campaigns for client ${clientId}:`, error)
     throw error
@@ -786,7 +721,7 @@ export const getCampaignsByClient = async (
 export const getCampaign = async (id: string): Promise<Campaign | null> => {
   try {
     const { data } = await apiClient.get(`/campaigns/${id}`)
-    return extractData(data, 'campaign') as Campaign | null
+    return (data['data'] as Campaign) ?? null
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(
@@ -804,8 +739,8 @@ export const createCampaign = async (
 ): Promise<Campaign> => {
   try {
     const { data } = await apiClient.post('/campaigns/create', campaignData)
-    const createdCampaign = extractData(data, 'campaign')
-    if (createdCampaign) return createdCampaign as Campaign
+    const createdCampaign = data['data'] as Campaign
+    if (createdCampaign) return createdCampaign
 
     if (
       typeof data === 'object' &&
@@ -837,8 +772,8 @@ export const updateCampaign = async (
 ): Promise<Campaign> => {
   try {
     const { data } = await apiClient.put(`/campaigns/${id}`, campaignData)
-    const updatedCampaign = extractData(data, 'campaign')
-    if (updatedCampaign) return updatedCampaign as Campaign
+    const updatedCampaign = data['data'] as Campaign
+    if (updatedCampaign) return updatedCampaign
 
     if (
       typeof data === 'object' &&
@@ -893,6 +828,7 @@ export interface AddQuestionPayload {
 
 export const getSurveys = async (): Promise<Survey[]> => {
   try {
+
     const { data } = await apiClient.get('/surveys/list') // Note: using /surveys/list endpoint
     // The API returns { success: true, data: [...] }
     const surveys = data.data || []
@@ -947,6 +883,9 @@ export const getSurveys = async (): Promise<Survey[]> => {
 
     console.log('Final surveys with questions:', surveysWithQuestions)
     return surveysWithQuestions
+
+    const { data } = await apiClient.get('/surveys/list')
+    return (data['data'] as Survey[]) ?? []
   } catch (error) {
     console.error('Error fetching surveys:', error)
     throw error
@@ -959,7 +898,7 @@ export const getSurveysByCampaign = async (
   try {
     // Ensure endpoint supports filtering by campaignId
     const { data } = await apiClient.get(`/surveys?campaignId=${campaignId}`)
-    return (extractData(data, 'surveys') as Survey[]) ?? []
+    return (data['data'] as Survey[]) ?? []
   } catch (error) {
     console.error(`Error fetching surveys for campaign ${campaignId}:`, error)
     throw error
@@ -970,7 +909,7 @@ export const getSurveysByBrand = async (brandId: string): Promise<Survey[]> => {
   try {
     // Ensure endpoint supports filtering by brandId
     const { data } = await apiClient.get(`/surveys?brandId=${brandId}`)
-    return (extractData(data, 'surveys') as Survey[]) ?? []
+    return (data['data'] as Survey[]) ?? []
   } catch (error) {
     console.error(`Error fetching surveys for brand ${brandId}:`, error)
     throw error
@@ -980,7 +919,7 @@ export const getSurveysByBrand = async (brandId: string): Promise<Survey[]> => {
 export const getSurvey = async (id: string): Promise<Survey | null> => {
   try {
     const { data } = await apiClient.get(`/surveys/${id}`)
-    return extractData(data, 'survey') as Survey | null
+    return (data['data'] as Survey) ?? null
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       console.warn(
@@ -998,8 +937,8 @@ export const createSurvey = async (
 ): Promise<Survey> => {
   try {
     const { data } = await apiClient.post('/surveys/create', surveyData)
-    const createdSurvey = extractData(data, 'survey')
-    if (createdSurvey) return createdSurvey as Survey
+    const createdSurvey = data['data'] as Survey
+    if (createdSurvey) return createdSurvey
 
     if (
       typeof data === 'object' &&
@@ -1028,8 +967,8 @@ export const updateSurvey = async (
 ): Promise<Survey> => {
   try {
     const { data } = await apiClient.put(`/surveys/${id}`, surveyData)
-    const updatedSurvey = extractData(data, 'survey')
-    if (updatedSurvey) return updatedSurvey as Survey
+    const updatedSurvey = data['data'] as Survey
+    if (updatedSurvey) return updatedSurvey
 
     if (
       typeof data === 'object' &&
@@ -1061,8 +1000,8 @@ export const addQuestionToSurvey = async (
       `/surveys/${surveyId}/questions`,
       questionData
     )
-    const createdQuestion = extractData(data, 'question')
-    if (createdQuestion) return createdQuestion as SurveyQuestion
+    const createdQuestion = data['data'] as SurveyQuestion
+    if (createdQuestion) return createdQuestion
 
     if (
       typeof data === 'object' &&
@@ -1096,8 +1035,8 @@ export const updateQuestionInSurvey = async (
       `/surveys/${surveyId}/questions/${questionId}`,
       questionData
     )
-    const updatedQuestion = extractData(data, 'question')
-    if (updatedQuestion) return updatedQuestion as SurveyQuestion
+    const updatedQuestion = data['data'] as SurveyQuestion
+    if (updatedQuestion) return updatedQuestion
 
     if (
       typeof data === 'object' &&
@@ -1155,7 +1094,7 @@ export const getDemographicReport = async (
 ): Promise<Report<DemographicInsightsData> | null> => {
   try {
     const { data } = await apiClient.get('/reports/demographic', { params })
-    const reportData = extractData(data, 'report') || data
+    const reportData = data['data'] ?? data
     if (reportData && typeof reportData === 'object') {
       return { data: reportData } as Report<DemographicInsightsData>
     }
@@ -1179,7 +1118,7 @@ export const getQuestionInsights = async (
 ): Promise<Report<QuestionInsightsData> | null> => {
   try {
     const { data } = await apiClient.get('/reports/survey', { params }) // Endpoint seems to be /reports/survey
-    const reportData = extractData(data, 'report') || data
+    const reportData = data['data'] ?? data
     if (reportData && typeof reportData === 'object') {
       return { data: reportData } as Report<QuestionInsightsData>
     }
@@ -1203,7 +1142,7 @@ export const getSurveyAnalysisReport = async (
 ): Promise<Report<SurveyAnalysisReportData> | null> => {
   try {
     const { data } = await apiClient.get(`/reports/survey/analysis/${surveyId}`)
-    const reportData = extractData(data, 'report') || data
+    const reportData = data['data'] ?? data
     if (reportData && typeof reportData === 'object') {
       return { data: reportData } as Report<SurveyAnalysisReportData>
     }
@@ -1228,7 +1167,7 @@ export const getBrandInsightsReport = async (
 ): Promise<Report<BrandInsightsData> | null> => {
   try {
     const { data } = await apiClient.get(`/reports/brand/${brandId}`)
-    const reportData = extractData(data, 'report') || data
+    const reportData = data['data'] ?? data
     if (reportData && typeof reportData === 'object') {
       return { data: reportData } as Report<BrandInsightsData>
     }
@@ -1252,7 +1191,7 @@ export const getSystemClientsReport =
   async (): Promise<Report<SystemClientsReportData> | null> => {
     try {
       const { data } = await apiClient.get('/reports/system/clients')
-      const reportData = extractData(data, 'report') || data
+      const reportData = data['data'] ?? data
       if (reportData && typeof reportData === 'object') {
         return { data: reportData } as Report<SystemClientsReportData>
       }
@@ -1273,7 +1212,7 @@ export const getSystemCustomersReport =
   async (): Promise<Report<SystemCustomersReportData> | null> => {
     try {
       const { data } = await apiClient.get('/reports/system/customers')
-      const reportData = extractData(data, 'report') || data
+      const reportData = data['data'] ?? data
       if (reportData && typeof reportData === 'object') {
         return { data: reportData } as Report<SystemCustomersReportData>
       }
@@ -1294,7 +1233,7 @@ export const getSystemCampaignsReport =
   async (): Promise<Report<SystemCampaignsReportData> | null> => {
     try {
       const { data } = await apiClient.get('/reports/system/campaigns')
-      const reportData = extractData(data, 'report') || data
+      const reportData = data['data'] ?? data
       if (reportData && typeof reportData === 'object') {
         return { data: reportData } as Report<SystemCampaignsReportData>
       }
@@ -1315,7 +1254,7 @@ export const getSystemSurveysReport =
   async (): Promise<Report<SystemSurveysReportData> | null> => {
     try {
       const { data } = await apiClient.get('/reports/system/surveys')
-      const reportData = extractData(data, 'report') || data
+      const reportData = data['data'] ?? data
       if (reportData && typeof reportData === 'object') {
         return { data: reportData } as Report<SystemSurveysReportData>
       }
@@ -1336,7 +1275,7 @@ export const getSystemSubmissionsReport =
   async (): Promise<Report<SystemSubmissionsReportData> | null> => {
     try {
       const { data } = await apiClient.get('/reports/system/submissions')
-      const reportData = extractData(data, 'report') || data
+      const reportData = data['data'] ?? data
       if (reportData && typeof reportData === 'object') {
         return { data: reportData } as Report<SystemSubmissionsReportData>
       }
@@ -1357,7 +1296,7 @@ export const getFullSystemReport =
   async (): Promise<Report<FullSystemReportData> | null> => {
     try {
       const { data } = await apiClient.get('/reports') // Root /reports endpoint
-      const reportData = extractData(data, 'report') || data
+      const reportData = data['data'] ?? data
       if (reportData && typeof reportData === 'object') {
         return { data: reportData } as Report<FullSystemReportData>
       }
@@ -1389,7 +1328,7 @@ export const getSystemReport = async (): Promise<Report<any> | null> => {
   )
   try {
     const { data } = await apiClient.get('/reports')
-    const reportData = extractData(data, 'report') || data
+    const reportData = data['data'] ?? data
     if (reportData && typeof reportData === 'object') {
       return { data: reportData } as Report<any>
     }
@@ -1418,7 +1357,7 @@ export const getResourceByClient = async <T>(
     const { data } = await apiClient.get(
       `/${resourcePath}?clientId=${clientId}`
     )
-    return (extractData(data, resourcePath) as T[]) ?? []
+    return (data['data'] as T[]) ?? []
   } catch (error) {
     console.error(
       `Error fetching ${resourcePath} for client ${clientId}:`,

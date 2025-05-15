@@ -62,11 +62,8 @@ export const listClients = async (): Promise<Client[]> => {
         ? new Date(client.updatedAt._seconds * 1000).toISOString()
         : new Date().toISOString(),
     }))
-  } catch (error) {
-    console.error('Error listing clients:', error)
-    throw error
-  }
-}
+    const response = await api.get('/clients');
+    return response.data;
 
 export const createClient = async (
   clientData: Omit<Client, 'id'>
