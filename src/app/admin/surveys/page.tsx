@@ -6,6 +6,8 @@ import type { SurveyFormData } from "@/lib/schemas";
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+    getSurvey as apiGetSurvey,
+
   getSurveys as apiGetSurveys,
   createSurvey as apiCreateSurvey,
   updateSurvey as apiUpdateSurvey,
@@ -86,8 +88,12 @@ export default function AdminSurveysPage() {
           await addQuestionToSurvey(createdSurvey.id, { text: q.text, type: q.type, options: q.options });
         }
       }
-      // Refetch the created survey with questions
-      return apiGetSurvey(createdSurvey.id);
+      // Refetch the created survey with questions and ensure it is not null
+      const refetchedSurvey = await apiGetSurvey(createdSurvey.id);
+      if (!refetchedSurvey) {
+        throw new Error("Survey not found after creation");
+      }
+      return refetchedSurvey;
     },
     onSuccess: (newSurvey) => {
       queryClient.invalidateQueries({ queryKey: ["surveys"] });
@@ -135,7 +141,11 @@ export default function AdminSurveysPage() {
         }
       }
       
-      return apiGetSurvey(updatedSurvey.id); // Refetch to get latest state
+      const refetchedSurvey = await apiGetSurvey(updatedSurvey.id); // Refetch to get latest state
+      if (!refetchedSurvey) {
+        throw new Error("Failed to refetch survey");
+      }
+      return refetchedSurvey;
     },
     onSuccess: (updatedSurvey) => {
       queryClient.invalidateQueries({ queryKey: ["surveys"] });
